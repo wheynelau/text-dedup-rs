@@ -1,5 +1,5 @@
 use core::num;
-use std::{collections::BTreeSet, sync::Arc, time::Instant};
+use std::{collections::{BTreeMap, BTreeSet}, hash::Hash, sync::Arc, time::Instant};
 use rand::{distributions::Uniform, Rng, SeedableRng};
 use regex::Regex;
 use sha1::{Sha1, Digest};
@@ -10,7 +10,6 @@ use pyo3::prelude::*;
 
 
 const RIEMANN_DIVISIONS: u32 = 100;
-
 
 #[derive(Debug)]
 pub struct EmbedFuncParams {
@@ -164,20 +163,14 @@ fn main() {
     let n = 3;
     let min_length = 5;
 
+    // These functions are fixed for all iterations
+
     let (b, r) = optimal_param(0.5, 200, 0.5, 0.5);
 
     let hash_ranges: Vec<(i32,i32)> = (0..b)
                     .map(|i| (i*r, (i+1)*r))
                     .collect();
-    // Start timing the tokenization process
-    // let start_tokenization = Instant::now();
-    let tokens = tokenize(text, n, min_length);
-    // let tokenization_duration = start_tokenization.elapsed();
-
-    // dbg!(tokenization_duration);
-
-    // println!("total number= {}", tokens.len());
-
+    
     let d = 64;
 
     // Start timing the hashing process
@@ -186,6 +179,16 @@ fn main() {
     let modulo_prime = 2u64.pow(61) - 1;
     let max_hash = 2u32.pow(d) - 1;
     let (a, b) = generate_permutations(modulo_prime as usize);
+
+    // Start timing the tokenization process
+    // let start_tokenization = Instant::now();
+    let start_process = Instant::now();
+    let tokens = tokenize(text, n, min_length);
+    // let tokenization_duration = start_tokenization.elapsed();
+
+    // dbg!(tokenization_duration);
+
+    // println!("total number= {}", tokens.len());
 
     // let hashing_duration = start_hashing.elapsed();
     // dbg!(hashing_duration);
@@ -234,9 +237,16 @@ fn main() {
         hashvalues[start..end].iter().flat_map(|&x| x.to_le_bytes().to_vec()).collect()
     }).collect();
 
-    dbg!(&hs[0]);
+    let mut return_hash = BTreeMap::new();
 
-    
+    return_hash.insert("__signatures__".to_string(), hs);
+
+     // dbg!(return_hash);
+
+    let process_duration = start_process.elapsed();
+
+    dbg!(process_duration);
+
     // for ((hash, a_row), &b_val) in hashes.iter_mut().zip(genrows(&a)).zip(b.iter()) {
     //     *hash = ((*hash * a_row + b_val) % modulo_prime) & max_hash;
     // }
