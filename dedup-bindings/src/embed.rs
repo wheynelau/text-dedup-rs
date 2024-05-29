@@ -1,11 +1,10 @@
-use core::num;
-use std::{collections::{BTreeMap, BTreeSet}, hash::Hash, sync::Arc, time::Instant};
+use std::{collections::{BTreeMap, BTreeSet}, sync::Arc, time::Instant};
 use rand::{distributions::Uniform, Rng, SeedableRng};
 use regex::Regex;
 use sha1::{Sha1, Digest};
 use byteorder::{ByteOrder, LittleEndian};
-use ndarray::{ArcArray, ArcArray1, ArcArray2};
-use rayon::{prelude::*, result};
+use ndarray::{ArcArray1};
+use rayon::{prelude::*};
 use pyo3::prelude::*;
 
 
