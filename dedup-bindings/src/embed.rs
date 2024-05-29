@@ -68,8 +68,8 @@ fn sha1_hash(data: &[u8], d: u32) -> u64 {
         },
     }
 }
-pub fn tokenize(text: String, n: usize, min_length: usize) -> BTreeSet<Arc<[u8]>> {
-    let text: String = text.to_lowercase();
+pub fn tokenize(text: &str, n: usize, min_length: usize) -> BTreeSet<Arc<[u8]>> {
+    // let text: String = text.to_lowercase();
 
     let re = Regex::new(r"\W+").unwrap();
 
@@ -182,7 +182,7 @@ fn main() {
     // Start timing the tokenization process
     // let start_tokenization = Instant::now();
     let start_process = Instant::now();
-    let tokens = tokenize(text, n, min_length);
+    let tokens = tokenize(&text, n, min_length);
     // let tokenization_duration = start_tokenization.elapsed();
 
     // dbg!(tokenization_duration);
@@ -253,43 +253,19 @@ fn main() {
 
 }
 
-pub fn py_embed_func(text: String, hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
+pub fn py_embed_func(text: &str, hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
     let n = 3;
     let min_length = 5;
 
-    // let (b, r) = optimal_param(0.5, 200, 0.5, 0.5);
-
-    // let hash_ranges: Vec<(i32,i32)> = (0..b)
-    //                 .map(|i| (i*r, (i+1)*r))
-    //                 .collect();
-    // Start timing the tokenization process
-    // let start_tokenization = Instant::now();
-    let tokens = tokenize(text, n, min_length);
-    // let tokenization_duration = start_tokenization.elapsed();
-
-    // dbg!(tokenization_duration);
-
-    // println!("total number= {}", tokens.len());
+    let tokens = tokenize(&text, n, min_length);
 
     let d = 64;
 
-    // Start timing the hashing process
-    // let start_hashing = Instant::now();
-
     let modulo_prime = 2u64.pow(61) - 1;
-    let max_hash = 2u32.pow(d) - 1;
+    let max_hash = 1u64.pow(d) - 1;
     let (a, b) = generate_permutations(modulo_prime as usize);
 
-    // let hashing_duration = start_hashing.elapsed();
-    // dbg!(hashing_duration);
-    // dbg!(a.len());
-    // dbg!(b.len());
-
     let hashes: Vec<u64> = hash_tokens(tokens, d);
-
-    // dbg!(hashes.len());
-
-    // let start_hashing = Instant::now();
 
     let mut result: Vec<Vec<u64>> = Vec::new();
 
@@ -302,10 +278,6 @@ pub fn py_embed_func(text: String, hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
         result.push(inner_vec);  // Add the inner vector to the outer vector after each iteration of the inner loop
     }
 
-    // let hashing_duration = start_hashing.elapsed();
-
-    // dbg!(hashing_duration);
-    // add a num_perm shape of max hash
     let max_hash_vec: Vec<u64> = vec![max_hash as u64; a.len()];
     result.push(max_hash_vec);
 
@@ -351,5 +323,22 @@ mod tests {
         let tolerance = 0.001;
         println!("Result: {}, Expected: {}", result, expected);
         assert!((result - expected).abs() < tolerance, "The calculated integral was not within the expected tolerance");
+    }
+
+    #[test]
+    fn test_embed_fn() {
+        let threshold = 0.5;
+        let num_perm = 200;
+        let false_positive_weight = 0.5;
+        let false_negative_weight = 0.5;
+
+        let (b, r) = optimal_param(threshold, num_perm, false_positive_weight, false_negative_weight);
+        let hash_ranges: Vec<(i32, i32)> = (0..b)
+                        .map(|i| (i * r, (i + 1) * r))
+                        .collect();
+
+        let text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
+        let out = py_embed_func(text, hash_ranges);
+        dbg!(out);
     }
 }
