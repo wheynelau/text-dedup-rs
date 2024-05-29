@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use rand::{seq::SliceRandom, thread_rng};
 
 mod embed;
+mod analysis;
 
 use sha1::{Sha1, Digest};
 
@@ -99,5 +100,6 @@ fn dedup_bindings(_py: Python, m: &PyModule) -> PyResult<()> {
     // m.add_function(wrap_pyfunction!(shuffle, m)?)?;
     m.add_function(wrap_pyfunction!(jaccard, m)?)?;
     m.add_function(wrap_pyfunction!(one_hot, m)?)?;
+    m.add_function(wrap_pyfunction!(embed::py_embed_func, m)?)?;
     Ok(())
 }

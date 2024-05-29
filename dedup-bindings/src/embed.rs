@@ -1,10 +1,16 @@
+use core::num;
 use std::{collections::BTreeSet, sync::Arc, time::Instant};
 use rand::{distributions::Uniform, Rng, SeedableRng};
 use regex::Regex;
 use sha1::{Sha1, Digest};
 use byteorder::{ByteOrder, LittleEndian};
 use ndarray::{ArcArray, ArcArray1, ArcArray2};
-use rayon::prelude::*;
+use rayon::{prelude::*, result};
+use pyo3::prelude::*;
+
+
+const RIEMANN_DIVISIONS: u32 = 100;
+
 
 #[derive(Debug)]
 pub struct EmbedFuncParams {
@@ -107,8 +113,7 @@ fn generate_permutations(modulo_prime: usize) -> (ArcArray1<u64>, ArcArray1<u64>
 
     (a, b)
 }
-
-fn riemann_sum(f: fn(f64) -> f64, a: f64, b: f64, n: usize) -> f64 {
+fn riemann_sum(f: impl Fn(f64) -> f64, a: f64, b: f64, n: u32) -> f64 {
     let h = (b - a) / n as f64;
     let sum = (1..n)
         .map(|i| f(a + i as f64 * h))
@@ -116,47 +121,82 @@ fn riemann_sum(f: fn(f64) -> f64, a: f64, b: f64, n: usize) -> f64 {
     h * ((f(a) + f(b)) / 2.0 + sum)
 }
 
-// fn optimal_param(threshold: f64, 
-//     num_perm: usize, 
-//     false_positive_weight:f64,
-//     false_negative_weight: f64) -> (usize, usize) {
+fn false_positive_area(threshold: f64, b:i32, r: i32) -> f64 {
+    let proba = |s: f64| -> f64 {
+        1.0 - (1.0 - s.powi(r)).powi(b)
+    };
+    riemann_sum(proba, 0.0, threshold, RIEMANN_DIVISIONS)
+}
 
-    
-// }
+fn false_negative_area(threshold: f64, b: i32, r: i32) -> f64 {
+    let proba = |s: f64| -> f64 {
+        1.0 - (1.0 - (1.0 - s.powi(r)).powi(b))
+    };
+    riemann_sum(proba, threshold, 1.0, RIEMANN_DIVISIONS)
+}
+
+fn optimal_param(threshold: f64, 
+    num_perm: i32, 
+    false_positive_weight:f64,
+    false_negative_weight: f64) -> (i32, i32) {
+
+    let mut min_error:f64 = f64::INFINITY;
+
+    let mut opt: (i32, i32) = (0,0);
+
+    for b in 1..(num_perm + 1) as i32 {
+        let max_r: i32 = num_perm / b;
+        for r in 1..max_r + 1 as i32 {
+            let false_positive = false_positive_area(threshold, b, r);
+            let false_negative = false_negative_area(threshold, b, r);
+            let error = false_positive_weight * false_positive + false_negative_weight * false_negative;
+            if error < min_error {
+                min_error = error;
+                opt = (b, r);
+            }
+        }
+    }
+    opt
+}
 
 fn main() {
     let text = "But I must explain to you how all this mistaken idea of denouncing pleasure and praising pain was born and I will give you a complete account of the system, and expound the actual teachings of the great explorer of the truth, the master-builder of human happiness. No one rejects, dislikes, or avoids pleasure itself, because it is pleasure, but because those who do not know how to pursue pleasure rationally encounter consequences that are extremely painful. Nor again is there anyone who loves or pursues or desires to obtain pain of itself, because it is pain, but because occasionally circumstances occur in which toil and pain can procure him some great pleasure. To take a trivial example, which of us ever undertakes laborious physical exercise, except to obtain some advantage from it? But who has any right to find fault with a man who chooses to enjoy a pleasure that has no annoying consequences, or one who avoids a pain that produces no resultant pleasure?".to_string();
     let n = 3;
     let min_length = 5;
 
+    let (b, r) = optimal_param(0.5, 200, 0.5, 0.5);
+
+    let hash_ranges: Vec<(i32,i32)> = (0..b)
+                    .map(|i| (i*r, (i+1)*r))
+                    .collect();
     // Start timing the tokenization process
-    let start_tokenization = Instant::now();
+    // let start_tokenization = Instant::now();
     let tokens = tokenize(text, n, min_length);
-    let tokenization_duration = start_tokenization.elapsed();
+    // let tokenization_duration = start_tokenization.elapsed();
 
-    dbg!(tokenization_duration);
+    // dbg!(tokenization_duration);
 
-    println!("total number= {}", tokens.len());
+    // println!("total number= {}", tokens.len());
 
     let d = 64;
 
     // Start timing the hashing process
-    let start_hashing = Instant::now();
+    // let start_hashing = Instant::now();
 
     let modulo_prime = 2u64.pow(61) - 1;
     let max_hash = 2u32.pow(d) - 1;
     let (a, b) = generate_permutations(modulo_prime as usize);
 
-    let hashing_duration = start_hashing.elapsed();
-    dbg!(hashing_duration);
-    dbg!(a.len());
-    dbg!(b.len());
+    // let hashing_duration = start_hashing.elapsed();
+    // dbg!(hashing_duration);
+    // dbg!(a.len());
+    // dbg!(b.len());
 
     let hashes: Vec<u64> = hash_tokens(tokens, d);
 
-    dbg!(hashes.len());
+    // dbg!(hashes.len());
 
-    let start_hashing = Instant::now();
+    // let start_hashing = Instant::now();
 
     let mut result: Vec<Vec<u64>> = Vec::new();
 
@@ -169,13 +209,39 @@ fn main() {
         result.push(inner_vec);  // Add the inner vector to the outer vector after each iteration of the inner loop
     }
 
-    let hashing_duration = start_hashing.elapsed();
+    // let hashing_duration = start_hashing.elapsed();
 
-    dbg!(hashing_duration);
+    // dbg!(hashing_duration);
+    // add a num_perm shape of max hash
+    let max_hash_vec: Vec<u64> = vec![max_hash as u64; a.len()];
+    result.push(max_hash_vec);
 
+    // find the min of each column
+    let num_cols = result[0].len();
+
+    let hashvalues: Vec<u64> = (0..num_cols)
+        .map(|col| {
+            result.iter()
+                  .map(|row| row[col])
+                  .min()
+                  .unwrap()
+        })
+        .collect();
+
+    let hs:Vec<Vec<u8>> = hash_ranges.iter().map(|(start, end)| {
+        let start = *start as usize;
+        let end = *end as usize;
+        hashvalues[start..end].iter().flat_map(|&x| x.to_le_bytes().to_vec()).collect()
+    }).collect();
+
+    dbg!(&hs[0]);
+
+    
     // for ((hash, a_row), &b_val) in hashes.iter_mut().zip(genrows(&a)).zip(b.iter()) {
     //     *hash = ((*hash * a_row + b_val) % modulo_prime) & max_hash;
     // }
+
+
 }
 
 #[cfg(test)]
