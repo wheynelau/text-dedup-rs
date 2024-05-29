@@ -2,11 +2,10 @@ use ndarray::Array1;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use rand::{rngs::SmallRng, Rng, SeedableRng}; // Add the missing import
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 use rand::{seq::SliceRandom, thread_rng};
 
 mod embed;
-mod analysis;
 
 use sha1::{Sha1, Digest};
 
@@ -21,6 +20,33 @@ struct EmbedFuncParams {
     modulo_prime: u32,
 }
 
+#[pyclass]
+struct EmbedFunc {
+    b: i32,
+    r: i32,
+    hash_values: Arc<Vec<(i32,i32)>>,
+}
+
+#[pymethods]
+impl EmbedFunc {
+    #[new]
+    fn new(threshold:f64, num_perm:i32,false_positive:f64, false_negative:f64) -> Self {
+
+        let (B, R) = embed::optimal_param(threshold, num_perm, false_positive, false_negative);
+        let hash_ranges: Arc<Vec<(i32, i32)>> = Arc::new((0..B)
+                        .map(|i| (i * R, (i + 1) * R))
+                        .collect());
+        
+        EmbedFunc {
+            b: B,
+            r: R,
+            hash_values: hash_ranges
+        }
+    }
+    fn embed_func(&self, text:String) -> Vec<String>{
+        embed::py_embed_func(text, self.hash_values.to_vec())
+}
+}
 
 #[pyfunction]
 fn shingle(text: String, k: usize) -> PyResult<HashSet<String>> {
@@ -100,6 +126,6 @@ fn dedup_bindings(_py: Python, m: &PyModule) -> PyResult<()> {
     // m.add_function(wrap_pyfunction!(shuffle, m)?)?;
     m.add_function(wrap_pyfunction!(jaccard, m)?)?;
     m.add_function(wrap_pyfunction!(one_hot, m)?)?;
-    m.add_function(wrap_pyfunction!(embed::py_embed_func, m)?)?;
+    m.add_class::<EmbedFunc>()?;
     Ok(())
 }

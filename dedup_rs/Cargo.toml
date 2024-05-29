@@ -1,8 +1,0 @@
-[package]
-name = "dedup_rs"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-parquet="51.0.0"
-arrow="51.0.0"

@@ -133,7 +133,7 @@ fn false_negative_area(threshold: f64, b: i32, r: i32) -> f64 {
     riemann_sum(proba, threshold, 1.0, RIEMANN_DIVISIONS)
 }
 
-fn optimal_param(threshold: f64, 
+pub fn optimal_param(threshold: f64, 
     num_perm: i32, 
     false_positive_weight:f64,
     false_negative_weight: f64) -> (i32, i32) {
@@ -251,6 +251,84 @@ fn main() {
     // }
 
 
+}
+
+pub fn py_embed_func(text: String, hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
+    let n = 3;
+    let min_length = 5;
+
+    // let (b, r) = optimal_param(0.5, 200, 0.5, 0.5);
+
+    // let hash_ranges: Vec<(i32,i32)> = (0..b)
+    //                 .map(|i| (i*r, (i+1)*r))
+    //                 .collect();
+    // Start timing the tokenization process
+    // let start_tokenization = Instant::now();
+    let tokens = tokenize(text, n, min_length);
+    // let tokenization_duration = start_tokenization.elapsed();
+
+    // dbg!(tokenization_duration);
+
+    // println!("total number= {}", tokens.len());
+
+    let d = 64;
+
+    // Start timing the hashing process
+    // let start_hashing = Instant::now();
+
+    let modulo_prime = 2u64.pow(61) - 1;
+    let max_hash = 2u32.pow(d) - 1;
+    let (a, b) = generate_permutations(modulo_prime as usize);
+
+    // let hashing_duration = start_hashing.elapsed();
+    // dbg!(hashing_duration);
+    // dbg!(a.len());
+    // dbg!(b.len());
+
+    let hashes: Vec<u64> = hash_tokens(tokens, d);
+
+    // dbg!(hashes.len());
+
+    // let start_hashing = Instant::now();
+
+    let mut result: Vec<Vec<u64>> = Vec::new();
+
+    for hash in hashes.iter() {
+        let mut inner_vec: Vec<u64> = Vec::new();  // Create a vector to hold the computed hashes for this iteration
+        for (a_val, b_val) in a.iter().zip(b.iter()) {
+            let computed_hash = ((hash * a_val + b_val) % modulo_prime as u64) & max_hash as u64;
+            inner_vec.push(computed_hash);  // Store each computed hash in the inner vector
+        }
+        result.push(inner_vec);  // Add the inner vector to the outer vector after each iteration of the inner loop
+    }
+
+    // let hashing_duration = start_hashing.elapsed();
+
+    // dbg!(hashing_duration);
+    // add a num_perm shape of max hash
+    let max_hash_vec: Vec<u64> = vec![max_hash as u64; a.len()];
+    result.push(max_hash_vec);
+
+    // find the min of each column
+    let num_cols = result[0].len();
+
+    let hashvalues: Vec<u64> = (0..num_cols)
+        .map(|col| {
+            result.iter()
+                  .map(|row| row[col])
+                  .min()
+                  .unwrap()
+        })
+        .collect();
+
+    let hs: Vec<String> = hash_ranges.iter().map(|(start, end)| {
+        let start = *start as usize;
+        let end = *end as usize;
+        let inner_vec = hashvalues[start..end].iter().flat_map(|&x| x.to_le_bytes().to_vec()).collect();
+        String::from_utf8(inner_vec).unwrap()
+    }).collect();
+
+    hs
 }
 
 #[cfg(test)]
