@@ -9,15 +9,21 @@ name = "dedup_bindings"
 crate-type = ["cdylib"]
 
 [[bin]]
+name = "main"
+path = "src/main.rs"
+
+
+[[bin]]
 name = "embed"
 path = "src/embed.rs"
 
 [dependencies]
 pyo3 = "0.21.2"
-polars = "0.40.0"
 rand = { version = "0.8.4", features = ["small_rng"] }
 sha1 = "0.10.6"
 regex = "1.5.4"
 ndarray = "0.15.4"
 byteorder = "1.4.3"
 rayon = "1.10.0"
+hex = "0.4.3"
+lazy_static = "1.4.0"
