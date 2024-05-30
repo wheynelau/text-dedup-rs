@@ -74,19 +74,6 @@ impl EmbedFunc {
         
         BTreeMap::from([(self.main_col.to_string(), new_text)])
     }
-    pub fn __setstate__(&mut self, py: Python, state: PyObject) -> PyResult<()> {
-        match state.extract::<&PyBytes>(py) {
-            Ok(s) => {
-                self.foo = deserialize(s.as_bytes()).unwrap();
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    pub fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
-        Ok(PyBytes::new(py, &serialize(&self.foo).unwrap()).to_object(py))
-    }
 
 }
 // #[pyfunction]
