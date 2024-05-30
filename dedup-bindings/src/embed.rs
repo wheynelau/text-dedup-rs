@@ -1,14 +1,22 @@
-use std::{collections::{BTreeMap, BTreeSet}, sync::Arc, time::Instant};
+use lazy_static::lazy_static;
+use std::collections::BTreeSet;
 use rand::{distributions::Uniform, Rng, SeedableRng};
 use regex::Regex;
 use sha1::{Sha1, Digest};
 use byteorder::{ByteOrder, LittleEndian};
-use ndarray::{ArcArray1};
-use rayon::{prelude::*};
-use pyo3::prelude::*;
+use ndarray::ArcArray1;
 
 
+const D :u32 = 32;
 const RIEMANN_DIVISIONS: u32 = 100;
+const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
+const MAX_HASH:u64 = 2u64.pow(D) - 1;
+const N: i32 = 3;
+const MIN_LENGTH:i32 = 5;
+
+lazy_static! {
+    static ref RE:Regex = Regex::new(r"\W+").unwrap();
+}
 
 #[derive(Debug)]
 pub struct EmbedFuncParams {
@@ -22,34 +30,14 @@ pub struct EmbedFuncParams {
     // max_hash: u32,
     // modulo_prime: u32,
 }
-
-pub fn embed_func(params: &EmbedFuncParams) {
-
-    let modulo_prime: i32 = i32::pow(2, 61) -1;
-    let seed: u8 = 42;
-
-    let mut rng: rand::rngs::StdRng = SeedableRng::from_seed([seed; 32]);
-    let a: Vec<i32> = (1..modulo_prime)
-                    .map(|_| rng.gen_range(1..modulo_prime))
-                    .collect();
-
-    // Generate the second part of the permutation
-    let b: Vec<i32> = (0..modulo_prime)
-                    .map(|_| rng.gen_range(0..modulo_prime))
-                    .collect();
-
-    // Combine both parts into a tuple
-    let permutations = (a, b);
-}
-
-fn ngrams(sequence: Vec<&str>, n: usize, min_length: usize) -> Vec<Vec<&str>> {
-    if sequence.len() < min_length {
+fn ngrams(sequence: Vec<&str>, n: i32, min_length: i32) -> Vec<Vec<&str>> {
+    if sequence.len() < min_length as usize {
         return vec![];
     }
-    if sequence.len() < n {
+    if sequence.len() < n as usize {
         return vec![sequence];
     }
-    sequence.windows(n).map(|window| window.to_vec()).collect()
+    sequence.windows(n as usize).map(|window| window.to_vec()).collect()
 }
 
 fn sha1_hash(data: &[u8], d: u32) -> u64 {
@@ -68,34 +56,31 @@ fn sha1_hash(data: &[u8], d: u32) -> u64 {
         },
     }
 }
-pub fn tokenize(text: &str, n: usize, min_length: usize) -> BTreeSet<Arc<[u8]>> {
+pub fn tokenize(text: &str, n: i32, min_length: i32) -> BTreeSet<Vec<u8>> {
     // let text: String = text.to_lowercase();
 
-    let re = Regex::new(r"\W+").unwrap();
-
-    let filtered_content: Vec<&str> = re.split(&text)
+    let filtered_content: Vec<&str> = RE.split(&text)
                                         .filter(|s| !s.is_empty())
                                         .collect();
     
-    let tokens: BTreeSet<Arc<[u8]>> = ngrams(filtered_content, n, min_length)
+    let tokens: BTreeSet<Vec<u8>> = ngrams(filtered_content, n, min_length)
     .into_iter()
     .map(|vec| vec.join(" "))
     .map(|s| s.into_bytes()) // Convert String to Vec<u8>
-    .map(Arc::from)    // Convert Vec<u8> to Arc<[u8]>
     .collect();
     
     tokens
 }
-pub fn hash_tokens(tokens: BTreeSet<Arc<[u8]>>, d: u32) -> Vec<u64> {
+pub fn hash_tokens(tokens: BTreeSet<Vec<u8>>, d: u32) -> Vec<u64> {
     tokens.iter()
         .map(|token| sha1_hash(token, d))
         .collect()
 }
 
-fn generate_permutations(modulo_prime: usize) -> (ArcArray1<u64>, ArcArray1<u64>) {
+fn generate_permutations(module_prime: usize) -> (ArcArray1<u64>, ArcArray1<u64>) {
     let mut rng: rand::rngs::StdRng = SeedableRng::from_seed([42; 32]);
-    let dist_a = Uniform::new(1, modulo_prime); // Range is [1, modulo_prime)
-    let dist_b = Uniform::new(0, modulo_prime); // Range is [0, modulo_prime)
+    let dist_a = Uniform::new(1, module_prime); // Range is [1, modulo_prime)
+    let dist_b = Uniform::new(0, module_prime); // Range is [0, modulo_prime)
 
     let a: ArcArray1<u64> = (0..200) // Assuming you want 200 elements as per previous context
         .map(|_| rng.sample(&dist_a) as u64)
@@ -157,10 +142,58 @@ pub fn optimal_param(threshold: f64,
     opt
 }
 
+
+pub fn py_embed_func(text: &str, hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
+
+    let tokens = tokenize(&text, N, MIN_LENGTH);
+
+    let (a, b) = generate_permutations(MODULE_PRIME as usize);
+
+    let hashes: Vec<u64> = hash_tokens(tokens, D);
+
+    // dbg!(&hashes[0]);
+
+    let mut result: Vec<Vec<u64>> = Vec::with_capacity(hashes.len() + 1);
+
+    let mut inner_vec: Vec<u64> = Vec::with_capacity(a.len());
+    for hash in hashes.iter() {
+        inner_vec.clear();  // Create a vector to hold the computed hashes for this iteration
+        for (a_val, b_val) in a.iter().zip(b.iter()) {
+            let computed_hash = hash.wrapping_mul(*a_val).wrapping_add(*b_val) % MODULE_PRIME & MAX_HASH ;
+            inner_vec.push(computed_hash);  // Store each computed hash in the inner vector
+        }
+        result.push(inner_vec.clone());  // Add the inner vector to the outer vector after each iteration of the inner loop
+    }
+
+    let max_hash_vec: Vec<u64> = vec![MAX_HASH as u64; a.len()];
+    result.push(max_hash_vec);
+
+    // dbg!(&result[0]);
+
+    // find the min of each column
+    let num_cols = result[0].len();
+    let mut hashvalues: Vec<u64> = Vec::with_capacity(num_cols);
+
+    for col in 0..num_cols {
+        let min_value = result.iter()
+                             .map(|row| row[col])
+                             .min()
+                             .expect("Expected at least one row");
+        hashvalues.push(min_value);
+    }
+
+    let hs: Vec<String> = hash_ranges.iter().map(|(start, end)| {
+        let start = *start as usize;
+        let end = *end as usize;
+        let inner_vec: Vec<u8> = hashvalues[start..end].iter().flat_map(|&x| x.to_le_bytes().to_vec()).collect();
+        hex::encode(&inner_vec)
+    }).collect();
+
+    hs
+}
+
 fn main() {
     let text = "But I must explain to you how all this mistaken idea of denouncing pleasure and praising pain was born and I will give you a complete account of the system, and expound the actual teachings of the great explorer of the truth, the master-builder of human happiness. No one rejects, dislikes, or avoids pleasure itself, because it is pleasure, but because those who do not know how to pursue pleasure rationally encounter consequences that are extremely painful. Nor again is there anyone who loves or pursues or desires to obtain pain of itself, because it is pain, but because occasionally circumstances occur in which toil and pain can procure him some great pleasure. To take a trivial example, which of us ever undertakes laborious physical exercise, except to obtain some advantage from it? But who has any right to find fault with a man who chooses to enjoy a pleasure that has no annoying consequences, or one who avoids a pain that produces no resultant pleasure?".to_string();
-    let n = 3;
-    let min_length = 5;
 
     // These functions are fixed for all iterations
 
@@ -169,140 +202,12 @@ fn main() {
     let hash_ranges: Vec<(i32,i32)> = (0..b)
                     .map(|i| (i*r, (i+1)*r))
                     .collect();
-    
-    let d = 64;
 
-    // Start timing the hashing process
-    // let start_hashing = Instant::now();
-
-    let modulo_prime = 2u64.pow(61) - 1;
-    let max_hash = 2u32.pow(d) - 1;
-    let (a, b) = generate_permutations(modulo_prime as usize);
-
-    // Start timing the tokenization process
-    // let start_tokenization = Instant::now();
-    let start_process = Instant::now();
-    let tokens = tokenize(&text, n, min_length);
-    // let tokenization_duration = start_tokenization.elapsed();
-
-    // dbg!(tokenization_duration);
-
-    // println!("total number= {}", tokens.len());
-
-    // let hashing_duration = start_hashing.elapsed();
-    // dbg!(hashing_duration);
-    // dbg!(a.len());
-    // dbg!(b.len());
-
-    let hashes: Vec<u64> = hash_tokens(tokens, d);
-
-    // dbg!(hashes.len());
-
-    // let start_hashing = Instant::now();
-
-    let mut result: Vec<Vec<u64>> = Vec::new();
-
-    for hash in hashes.iter() {
-        let mut inner_vec: Vec<u64> = Vec::new();  // Create a vector to hold the computed hashes for this iteration
-        for (a_val, b_val) in a.iter().zip(b.iter()) {
-            let computed_hash = ((hash * a_val + b_val) % modulo_prime as u64) & max_hash as u64;
-            inner_vec.push(computed_hash);  // Store each computed hash in the inner vector
-        }
-        result.push(inner_vec);  // Add the inner vector to the outer vector after each iteration of the inner loop
+    for _ in 0..100000 {
+        py_embed_func(&text, hash_ranges.clone());
     }
-
-    // let hashing_duration = start_hashing.elapsed();
-
-    // dbg!(hashing_duration);
-    // add a num_perm shape of max hash
-    let max_hash_vec: Vec<u64> = vec![max_hash as u64; a.len()];
-    result.push(max_hash_vec);
-
-    // find the min of each column
-    let num_cols = result[0].len();
-
-    let hashvalues: Vec<u64> = (0..num_cols)
-        .map(|col| {
-            result.iter()
-                  .map(|row| row[col])
-                  .min()
-                  .unwrap()
-        })
-        .collect();
-
-    let hs:Vec<Vec<u8>> = hash_ranges.iter().map(|(start, end)| {
-        let start = *start as usize;
-        let end = *end as usize;
-        hashvalues[start..end].iter().flat_map(|&x| x.to_le_bytes().to_vec()).collect()
-    }).collect();
-
-    let mut return_hash = BTreeMap::new();
-
-    return_hash.insert("__signatures__".to_string(), hs);
-
-     // dbg!(return_hash);
-
-    let process_duration = start_process.elapsed();
-
-    dbg!(process_duration);
-
-    // for ((hash, a_row), &b_val) in hashes.iter_mut().zip(genrows(&a)).zip(b.iter()) {
-    //     *hash = ((*hash * a_row + b_val) % modulo_prime) & max_hash;
-    // }
-
-
+    // py_embed_func(&text, hash_ranges.clone());
 }
-
-pub fn py_embed_func(text: &str, hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
-    let n = 3;
-    let min_length = 5;
-
-    let tokens = tokenize(&text, n, min_length);
-
-    let d = 64;
-
-    let modulo_prime = 2u64.pow(61) - 1;
-    let max_hash = 1u64.pow(d) - 1;
-    let (a, b) = generate_permutations(modulo_prime as usize);
-
-    let hashes: Vec<u64> = hash_tokens(tokens, d);
-
-    let mut result: Vec<Vec<u64>> = Vec::new();
-
-    for hash in hashes.iter() {
-        let mut inner_vec: Vec<u64> = Vec::new();  // Create a vector to hold the computed hashes for this iteration
-        for (a_val, b_val) in a.iter().zip(b.iter()) {
-            let computed_hash = ((hash * a_val + b_val) % modulo_prime as u64) & max_hash as u64;
-            inner_vec.push(computed_hash);  // Store each computed hash in the inner vector
-        }
-        result.push(inner_vec);  // Add the inner vector to the outer vector after each iteration of the inner loop
-    }
-
-    let max_hash_vec: Vec<u64> = vec![max_hash as u64; a.len()];
-    result.push(max_hash_vec);
-
-    // find the min of each column
-    let num_cols = result[0].len();
-
-    let hashvalues: Vec<u64> = (0..num_cols)
-        .map(|col| {
-            result.iter()
-                  .map(|row| row[col])
-                  .min()
-                  .unwrap()
-        })
-        .collect();
-
-    let hs: Vec<String> = hash_ranges.iter().map(|(start, end)| {
-        let start = *start as usize;
-        let end = *end as usize;
-        let inner_vec = hashvalues[start..end].iter().flat_map(|&x| x.to_le_bytes().to_vec()).collect();
-        String::from_utf8(inner_vec).unwrap()
-    }).collect();
-
-    hs
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -338,7 +243,6 @@ mod tests {
                         .collect();
 
         let text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
-        let out = py_embed_func(text, hash_ranges);
-        dbg!(out);
+        py_embed_func(text, hash_ranges);
     }
 }

@@ -1,37 +1,94 @@
-use ndarray::Array1;
+
 use pyo3::prelude::*;
-use std::{sync::Arc};
+use std::collections::BTreeMap;
+use rayon::prelude::*;
 
 mod embed;
+mod union;
 
 #[pyclass]
 struct EmbedFunc {
     b: i32,
     r: i32,
     hash_values: Vec<(i32,i32)>,
+    main_col: String,
+    idx_col: String
+}
+
+enum SIG {
+    SIGNATURE(Vec<String>),
+    INDEX(i32)
+}
+
+impl IntoPy<PyObject> for SIG {
+    fn into_py(self, py: Python) -> PyObject {
+        match self {
+            SIG::SIGNATURE(vec) => {
+                let py_list: PyObject = vec.into_py(py);  // Convert Vec<String> to Python list
+                py_list
+            },
+            SIG::INDEX(index) => {
+                let py_int: PyObject = index.into_py(py);  // Convert i32 to Python integer
+                py_int
+            },
+        }
+    }
 }
 
 #[pymethods]
 impl EmbedFunc {
     #[new]
-    fn new(threshold:f64, num_perm:i32,false_positive:f64, false_negative:f64) -> Self {
-
+    fn new(threshold:f64, num_perm:i32,false_positive:f64, false_negative:f64,
+        main_col: &str, idx_col: &str) -> Self {
         let (B, R) = embed::optimal_param(threshold, num_perm, false_positive, false_negative);
         let hash_ranges: Vec<(i32, i32)> = (0..B)
                         .map(|i| (i * R, (i + 1) * R))
                         .collect();
         
         EmbedFunc {
-            b: B,
-            r: R,
-            hash_values: hash_ranges
+            b: 50,
+            r: 4,
+            hash_values: hash_ranges,
+            main_col: main_col.to_string(),
+            idx_col: idx_col.to_string()
+
         }
     }
-    fn embed_func(&self, text:&str) -> Vec<String>{
-        embed::py_embed_func(&text, self.hash_values.to_vec())
-}
-}
+    pub fn embed_func(&self, text:&str, idx: i32) -> BTreeMap<String, SIG>{
+        let hs: Vec<String> = embed::py_embed_func(&text, self.hash_values.to_vec());
 
+        let mut map = BTreeMap::new();
+        map.insert(self.main_col.to_string(), SIG::SIGNATURE(hs));
+        map.insert(self.idx_col.to_string(), SIG::INDEX(idx));
+        map
+
+    }
+
+    fn batched_embed_func(&self, text: Vec<String>, idx: Vec<i32>) -> BTreeMap<String, Vec<SIG>> {
+
+        let new_text : Vec<SIG> = text.par_iter()
+            .map(|s| {
+                let mapped = (embed::py_embed_func(&s, self.hash_values.to_vec()));
+                SIG::SIGNATURE(mapped)
+            }).collect();
+        
+        BTreeMap::from([(self.main_col.to_string(), new_text)])
+    }
+    pub fn __setstate__(&mut self, py: Python, state: PyObject) -> PyResult<()> {
+        match state.extract::<&PyBytes>(py) {
+            Ok(s) => {
+                self.foo = deserialize(s.as_bytes()).unwrap();
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
+        Ok(PyBytes::new(py, &serialize(&self.foo).unwrap()).to_object(py))
+    }
+
+}
 // #[pyfunction]
 // fn shingle(text: String, k: usize) -> PyResult<HashSet<String>> {
 //     let text = text.to_lowercase();
