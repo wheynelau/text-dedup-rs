@@ -28,23 +28,57 @@ class IOArgs:
 
     @staticmethod
     def option_group(func):
-        @optgroup.group("Input/Output Options", help="Dataset and file handling options")
-        @optgroup.option("--path", type=str, help="`path` in load_dataset", required=False)
-        @optgroup.option("--name", type=str, help="`name` in load_dataset", default=None, required=False)
-        @optgroup.option("--data_dir", type=str, help="`data_dir` in load_dataset", default=None)
-        @optgroup.option("--data_files", type=str, help="`data_files` in load_dataset", default=None)
-        @optgroup.option("--split", type=str, help="`split` in load_dataset", default=None)
-        @optgroup.option("--cache_dir", type=str, help="`cache_dir` in load_dataset", default=".cache")
-        @optgroup.option("--revision", type=str, help="`revision` in load_dataset", default=None)
+        @optgroup.group(
+            "Input/Output Options", help="Dataset and file handling options"
+        )
+        @optgroup.option(
+            "--path", type=str, help="`path` in load_dataset", required=False
+        )
+        @optgroup.option(
+            "--name",
+            type=str,
+            help="`name` in load_dataset",
+            default=None,
+            required=False,
+        )
+        @optgroup.option(
+            "--data_dir", type=str, help="`data_dir` in load_dataset", default=None
+        )
+        @optgroup.option(
+            "--data_files", type=str, help="`data_files` in load_dataset", default=None
+        )
+        @optgroup.option(
+            "--split", type=str, help="`split` in load_dataset", default=None
+        )
+        @optgroup.option(
+            "--cache_dir",
+            type=str,
+            help="`cache_dir` in load_dataset",
+            default=".cache",
+        )
+        @optgroup.option(
+            "--revision", type=str, help="`revision` in load_dataset", default=None
+        )
         @optgroup.option(
             "--use_auth_token",
             help="To use auth token in load_dataset from HF Hub",
             default=False,
         )
         @optgroup.option("--local/--no-local", help="Use local dataset", default=False)
-        @optgroup.option("--output", type=str, help="Path to deduplicated dataset output", required=False)
-        @optgroup.option("--debug/--no-debug", help="Whether to run in debug mode", default=False)
-        @optgroup.option("--clean_cache/--no-clean_cache", help="Whether to remove all cache files", default=True)
+        @optgroup.option(
+            "--output",
+            type=str,
+            help="Path to deduplicated dataset output",
+            required=False,
+        )
+        @optgroup.option(
+            "--debug/--no-debug", help="Whether to run in debug mode", default=False
+        )
+        @optgroup.option(
+            "--clean_cache/--no-clean_cache",
+            help="Whether to remove all cache files",
+            default=True,
+        )
         @optgroup.option(
             "--num_proc",
             type=int,
@@ -54,10 +88,20 @@ class IOArgs:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if "io_args" not in kwargs:
-                io_args = IOArgs(**{k: kwargs.pop(k) for k in list(kwargs.keys()) if k in IOArgs.__annotations__})
+                io_args = IOArgs(
+                    **{
+                        k: kwargs.pop(k)
+                        for k in list(kwargs.keys())
+                        if k in IOArgs.__annotations__
+                    }
+                )
             else:
                 io_args = kwargs.pop("io_args")
-                {kwargs.pop(k) for k in list(kwargs.keys()) if k in IOArgs.__annotations__}
+                {
+                    kwargs.pop(k)
+                    for k in list(kwargs.keys())
+                    if k in IOArgs.__annotations__
+                }
             return func(*args, **kwargs, io_args=io_args)
 
         return wrapper
@@ -72,16 +116,39 @@ class MetaArgs:
     @staticmethod
     def option_group(func):
         @optgroup.group("Meta Options", help="Meta options")
-        @optgroup.option("--column", type=str, help="Column to deduplicate", required=True)
-        @optgroup.option("--idx_column", type=str, help="Column to index", required=False, default=None)
-        @optgroup.option("--batch_size", type=int, help="Batch size for deduplication", default=10_000)
+        @optgroup.option(
+            "--column", type=str, help="Column to deduplicate", required=True
+        )
+        @optgroup.option(
+            "--idx_column",
+            type=str,
+            help="Column to index",
+            required=False,
+            default=None,
+        )
+        @optgroup.option(
+            "--batch_size",
+            type=int,
+            help="Batch size for deduplication",
+            default=10_000,
+        )
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if "meta_args" not in kwargs:
-                meta_args = MetaArgs(**{k: kwargs.pop(k) for k in list(kwargs.keys()) if k in MetaArgs.__annotations__})
+                meta_args = MetaArgs(
+                    **{
+                        k: kwargs.pop(k)
+                        for k in list(kwargs.keys())
+                        if k in MetaArgs.__annotations__
+                    }
+                )
             else:
                 meta_args = kwargs.pop("meta_args")
-                {kwargs.pop(k) for k in list(kwargs.keys()) if k in MetaArgs.__annotations__}
+                {
+                    kwargs.pop(k)
+                    for k in list(kwargs.keys())
+                    if k in MetaArgs.__annotations__
+                }
             return func(*args, **kwargs, meta_args=meta_args)
 
         return wrapper
@@ -110,8 +177,12 @@ class MinHashArgs:
             default=5,
         )
         @optgroup.option("--seed", type=int, help="Seed for Minhash", default=42)
-        @optgroup.option("--num_perm", type=int, help="Number of permutations", default=250)
-        @optgroup.option("--threshold", type=float, help="Threshold for Minhash", default=0.7)
+        @optgroup.option(
+            "--num_perm", type=int, help="Number of permutations", default=250
+        )
+        @optgroup.option(
+            "--threshold", type=float, help="Threshold for Minhash", default=0.7
+        )
         @optgroup.option("--b", type=int, help="Number of bands", default=None)
         @optgroup.option("--r", type=int, help="Number of rows per band", default=None)
         @optgroup.option(
@@ -140,7 +211,11 @@ class MinHashArgs:
                 )
             else:
                 minhash_args = kwargs.pop("minhash_args")
-                {kwargs.pop(k) for k in list(kwargs.keys()) if k in MinHashArgs.__annotations__}
+                {
+                    kwargs.pop(k)
+                    for k in list(kwargs.keys())
+                    if k in MinHashArgs.__annotations__
+                }
             return func(*args, **kwargs, minhash_args=minhash_args)
 
         return wrapper
@@ -158,9 +233,14 @@ class SimHashArgs:
         @optgroup.group("Simhash Options", help="Simhash options")
         @optgroup.option("--ngram", type=int, help="Ngram size", default=3)
         @optgroup.option(
-            "--f", help="Simhash bit size", default="64", type=click.Choice(["64", "128"], case_sensitive=False)
+            "--f",
+            help="Simhash bit size",
+            default="64",
+            type=click.Choice(["64", "128"], case_sensitive=False),
         )
-        @optgroup.option("--bit_diff", type=int, help="Bit difference to use in SimHash", default=3)
+        @optgroup.option(
+            "--bit_diff", type=int, help="Bit difference to use in SimHash", default=3
+        )
         @optgroup.option(
             "--num_bucket",
             type=int,
@@ -179,7 +259,11 @@ class SimHashArgs:
                 )
             else:
                 simhash_args = kwargs.pop("simhash_args")
-                {kwargs.pop(k) for k in list(kwargs.keys()) if k in SimHashArgs.__annotations__}
+                {
+                    kwargs.pop(k)
+                    for k in list(kwargs.keys())
+                    if k in SimHashArgs.__annotations__
+                }
             return func(*args, **kwargs, simhash_args=simhash_args)
 
         return wrapper
@@ -207,15 +291,28 @@ class SAArgs:
             type=click.Choice(["overlapping", "longest"], case_sensitive=False),
         )
         @optgroup.option(
-            "--google_repo_path", type=str, help="Path to google-research-deduplication codebase", required=True
+            "--google_repo_path",
+            type=str,
+            help="Path to google-research-deduplication codebase",
+            required=True,
         )
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if "sa_args" not in kwargs:
-                sa_args = SAArgs(**{k: kwargs.pop(k) for k in list(kwargs.keys()) if k in SAArgs.__annotations__})
+                sa_args = SAArgs(
+                    **{
+                        k: kwargs.pop(k)
+                        for k in list(kwargs.keys())
+                        if k in SAArgs.__annotations__
+                    }
+                )
             else:
                 sa_args = kwargs.pop("sa_args")
-                {kwargs.pop(k) for k in list(kwargs.keys()) if k in SAArgs.__annotations__}
+                {
+                    kwargs.pop(k)
+                    for k in list(kwargs.keys())
+                    if k in SAArgs.__annotations__
+                }
             return func(*args, **kwargs, sa_args=sa_args)
 
         return wrapper
@@ -230,23 +327,41 @@ class BloomFilterArgs:
     @staticmethod
     def option_group(func):
         @optgroup.group("Bloom Filter Options", help="Bloom filter options")
-        @optgroup.option("--error_rate", type=float, help="Error rate to use in BloomFilter", default=1e-6)
+        @optgroup.option(
+            "--error_rate",
+            type=float,
+            help="Error rate to use in BloomFilter",
+            default=1e-6,
+        )
         @optgroup.option(
             "--hash_func",
             help="Hash function to use in BloomFilte",
             default="md5",
             type=click.Choice(["md5", "sha256", "xxh3"], case_sensitive=False),
         )
-        @optgroup.option("--initial_capacity", type=int, help="Initial capacity of BloomFilter", default=100)
+        @optgroup.option(
+            "--initial_capacity",
+            type=int,
+            help="Initial capacity of BloomFilter",
+            default=100,
+        )
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if "bloom_filter_args" not in kwargs:
                 bloom_filter_args = BloomFilterArgs(
-                    **{k: kwargs.pop(k) for k in list(kwargs.keys()) if k in BloomFilterArgs.__annotations__}
+                    **{
+                        k: kwargs.pop(k)
+                        for k in list(kwargs.keys())
+                        if k in BloomFilterArgs.__annotations__
+                    }
                 )
             else:
                 bloom_filter_args = kwargs.pop("bloom_filter_args")
-                {kwargs.pop(k) for k in list(kwargs.keys()) if k in BloomFilterArgs.__annotations__}
+                {
+                    kwargs.pop(k)
+                    for k in list(kwargs.keys())
+                    if k in BloomFilterArgs.__annotations__
+                }
             return func(*args, **kwargs, bloom_filter_args=bloom_filter_args)
 
         return wrapper
@@ -269,11 +384,19 @@ class ExactHashArgs:
         def wrapper(*args, **kwargs):
             if "exact_hash_args" not in kwargs:
                 exact_hash_args = ExactHashArgs(
-                    **{k: kwargs.pop(k) for k in list(kwargs.keys()) if k in ExactHashArgs.__annotations__}
+                    **{
+                        k: kwargs.pop(k)
+                        for k in list(kwargs.keys())
+                        if k in ExactHashArgs.__annotations__
+                    }
                 )
             else:
                 exact_hash_args = kwargs.pop("exact_hash_args")
-                {kwargs.pop(k) for k in list(kwargs.keys()) if k in ExactHashArgs.__annotations__}
+                {
+                    kwargs.pop(k)
+                    for k in list(kwargs.keys())
+                    if k in ExactHashArgs.__annotations__
+                }
             return func(*args, **kwargs, exact_hash_args=exact_hash_args)
 
         return wrapper
@@ -294,10 +417,22 @@ class UniSimArgs:
     @staticmethod
     def option_group(func):
         @optgroup.group("UniSim Options", help="UniSim options")
-        @optgroup.option("--store_data", help="Store data in cache", is_flag=True, default=False)
+        @optgroup.option(
+            "--store_data", help="Store data in cache", is_flag=True, default=False
+        )
         @optgroup.option("--index_type", help="Index type to use", default="approx")
-        @optgroup.option("--return_embeddings", help="Return embeddings instead of scores", is_flag=True, default=False)
-        @optgroup.option("--use_accelerator", help="Use accelerator for index creation", is_flag=True, default=False)
+        @optgroup.option(
+            "--return_embeddings",
+            help="Return embeddings instead of scores",
+            is_flag=True,
+            default=False,
+        )
+        @optgroup.option(
+            "--use_accelerator",
+            help="Use accelerator for index creation",
+            is_flag=True,
+            default=False,
+        )
         @optgroup.option("--model_id", help="Model id to use", default="text/retsim/v1")
         @optgroup.option(
             "--index_params",
@@ -305,17 +440,29 @@ class UniSimArgs:
             help="Index params to pass to the index creator (e.g. {'ngram': 2})",
             default=None,
         )
-        @optgroup.option("--similarity_threshold", help="Similarity threshold to use", default=0.9)
-        @optgroup.option("--verbose", help="Verbose level for logging", is_flag=True, default=False)
+        @optgroup.option(
+            "--similarity_threshold", help="Similarity threshold to use", default=0.9
+        )
+        @optgroup.option(
+            "--verbose", help="Verbose level for logging", is_flag=True, default=False
+        )
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if "unisim_args" not in kwargs:
                 unisim_args = UniSimArgs(
-                    **{k: kwargs.pop(k) for k in list(kwargs.keys()) if k in UniSimArgs.__annotations__}
+                    **{
+                        k: kwargs.pop(k)
+                        for k in list(kwargs.keys())
+                        if k in UniSimArgs.__annotations__
+                    }
                 )
             else:
                 unisim_args = kwargs.pop("unisim_args")
-                {kwargs.pop(k) for k in list(kwargs.keys()) if k in UniSimArgs.__annotations__}
+                {
+                    kwargs.pop(k)
+                    for k in list(kwargs.keys())
+                    if k in UniSimArgs.__annotations__
+                }
             return func(*args, **kwargs, unisim_args=unisim_args)
 
         return wrapper

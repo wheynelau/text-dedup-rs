@@ -3,6 +3,7 @@ import subprocess  # nosec
 from contextlib import redirect_stdout
 
 import click
+
 from text_dedup.bloom_filter import main as bf_main
 from text_dedup.utils import BloomFilterArgs, IOArgs, MetaArgs
 

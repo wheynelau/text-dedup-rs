@@ -11,16 +11,10 @@ from unisim import TextSim
 from unisim.embedder import Embedder
 
 from text_dedup import logger
-from text_dedup.utils import CLUSTER_COLUMN
-from text_dedup.utils import INDEX_COLUMN
-from text_dedup.utils import DisableReferenceCount
-from text_dedup.utils import IOArgs
-from text_dedup.utils import MetaArgs
-from text_dedup.utils import Timer
-from text_dedup.utils import UnionFind
-from text_dedup.utils import UniSimArgs
-from text_dedup.utils import load_hf_dataset
-from text_dedup.utils import random_samples
+from text_dedup.utils import (CLUSTER_COLUMN, INDEX_COLUMN,
+                              DisableReferenceCount, IOArgs, MetaArgs, Timer,
+                              UnionFind, UniSimArgs, load_hf_dataset,
+                              random_samples)
 
 EMBEDDING_COLUMN = "__embeddings__"
 
@@ -64,7 +58,11 @@ def main(io_args: IOArgs, meta_args: MetaArgs, unisim_args: UniSimArgs):
     # A workaround to enable multiprocessing for the inference session
     fpath = Path(inspect.getfile(Embedder))
     mpath = fpath.parent / "models" / unisim_args.model_id
-    providers = ["CPUExecutionProvider"] if not unisim_args.use_accelerator else ["CUDAExecutionProvider"]
+    providers = (
+        ["CPUExecutionProvider"]
+        if not unisim_args.use_accelerator
+        else ["CUDAExecutionProvider"]
+    )
     sess = WrapInferenceSession(str(mpath.with_suffix(".onnx")), providers=providers)
     text_sim.embedder.model["sess"] = sess
 
@@ -94,7 +92,10 @@ def main(io_args: IOArgs, meta_args: MetaArgs, unisim_args: UniSimArgs):
                 desc="Indexing embeddings...",
             ):
                 shard = ds.shard(
-                    num_shards=NUM_SHARDS, index=batch_idx, contiguous=True, writer_batch_size=meta_args.batch_size
+                    num_shards=NUM_SHARDS,
+                    index=batch_idx,
+                    contiguous=True,
+                    writer_batch_size=meta_args.batch_size,
                 )
                 batch_indices = shard[INDEX_COLUMN]
                 batch_embedds = shard[EMBEDDING_COLUMN]
@@ -111,7 +112,10 @@ def main(io_args: IOArgs, meta_args: MetaArgs, unisim_args: UniSimArgs):
                 desc="Querying embeddings...",
             ):
                 shard = ds.shard(
-                    num_shards=NUM_SHARDS, index=batch_idx, contiguous=True, writer_batch_size=meta_args.batch_size
+                    num_shards=NUM_SHARDS,
+                    index=batch_idx,
+                    contiguous=True,
+                    writer_batch_size=meta_args.batch_size,
                 )
 
                 remain_embedds = shard[EMBEDDING_COLUMN]
@@ -130,7 +134,12 @@ def main(io_args: IOArgs, meta_args: MetaArgs, unisim_args: UniSimArgs):
                         data=text_sim.indexed_data,
                     )
                     res = [
-                        [m for m in r.matches if m.similarity >= unisim_args.similarity_threshold] for r in res.results
+                        [
+                            m
+                            for m in r.matches
+                            if m.similarity >= unisim_args.similarity_threshold
+                        ]
+                        for r in res.results
                     ]
                     unfinished = []
                     for i, r in enumerate(res):
@@ -167,7 +176,9 @@ def main(io_args: IOArgs, meta_args: MetaArgs, unisim_args: UniSimArgs):
             )
             if io_args.debug:
                 # ! Expensive operation, but useful for debugging.
-                random_samples(ds, cluster_column="__cluster__", text_column=meta_args.column)
+                random_samples(
+                    ds, cluster_column="__cluster__", text_column=meta_args.column
+                )
 
         with timer("Saving"):
             final_data = final_data.remove_columns(["__cluster__"])

@@ -8,10 +8,11 @@ import click
 import datasets
 import pandas as pd
 from datasets import Features, Sequence, Value
+from tqdm import tqdm
+
 from text_dedup.simhash import main as simhash_main
 from text_dedup.utils import IOArgs, MetaArgs, SimHashArgs
 from text_dedup.utils.timer import Timer
-from tqdm import tqdm
 
 NUM_PROC = os.cpu_count()
 

@@ -1,10 +1,6 @@
-from datasets import Dataset
-from datasets import load_dataset
-from datasets import load_from_disk
+from datasets import Dataset, load_dataset, load_from_disk
 
-from text_dedup.utils import INDEX_COLUMN
-from text_dedup.utils import IOArgs
-from text_dedup.utils import MetaArgs
+from text_dedup.utils import INDEX_COLUMN, IOArgs, MetaArgs
 
 
 def load_hf_dataset(io_args: IOArgs, meta_args: MetaArgs) -> Dataset:
@@ -38,7 +34,9 @@ def load_hf_dataset(io_args: IOArgs, meta_args: MetaArgs) -> Dataset:
             num_proc=io_args.num_proc,
             token=io_args.use_auth_token,
         )
-    ds = ds.map(lambda x, i: {INDEX_COLUMN: i}, with_indices=True, num_proc=io_args.num_proc)
+    ds = ds.map(
+        lambda x, i: {INDEX_COLUMN: i}, with_indices=True, num_proc=io_args.num_proc
+    )
     id2id = None
     if meta_args.idx_column is not None:
         original_index = ds[meta_args.idx_column]

@@ -10,9 +10,7 @@ import time
 import warnings
 from itertools import tee
 from logging import Logger
-from typing import List
-from typing import Set
-from typing import Tuple
+from typing import List, Set, Tuple
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -22,8 +20,7 @@ with warnings.catch_warnings():
     import xxhash
     from graphframes import GraphFrame  # type: ignore
     from pyspark import SparkConf
-    from pyspark.sql import DataFrame
-    from pyspark.sql import SparkSession
+    from pyspark.sql import DataFrame, SparkSession
     from pyspark.sql import functions as F
     from pyspark.sql.functions import udf
     from pyspark.sql.types import BooleanType
@@ -133,7 +130,9 @@ def ngram_hashes(content: str, n: int, min_length: int = 5) -> Set[int]:
     [433422276]
     """
     tokens: List[str] = NON_ALPHA.split(content.lower())
-    ng: set[bytes] = {bytes(" ".join(t).lower(), "utf-8") for t in ngrams(tokens, n, min_length)}
+    ng: set[bytes] = {
+        bytes(" ".join(t).lower(), "utf-8") for t in ngrams(tokens, n, min_length)
+    }
     return {xxhash.xxh32_intdigest(n) for n in ng}
 
 
@@ -222,8 +221,13 @@ def generate_hash_values(
     a, b = permutations
     hashes = np.array(list(ngram_hashes(content, ngram_size, min_length)), dtype=DTYPE)
     p_hashes = ((np.outer(hashes, a) + b) % MOD_PRIME) & MAX_HASH
-    min_hashes = np.vstack([p_hashes, np.full(num_perm, MAX_HASH, dtype=DTYPE)]).min(axis=0)
-    return [(band_idx, min_hashes[start:end].data.tobytes(), idx) for band_idx, (start, end) in enumerate(hashranges)]
+    min_hashes = np.vstack([p_hashes, np.full(num_perm, MAX_HASH, dtype=DTYPE)]).min(
+        axis=0
+    )
+    return [
+        (band_idx, min_hashes[start:end].data.tobytes(), idx)
+        for band_idx, (start, end) in enumerate(hashranges)
+    ]
 
 
 # endregion
@@ -337,7 +341,9 @@ def partitioned_save(df: DataFrame, chunk_size: int, max_partitions: int, output
 
 if __name__ == "__main__":  # pragma: no cover
     # region: Argument Parsing
-    parser = argparse.ArgumentParser(description="Intra-dataset near-deduplicating with PySpark")
+    parser = argparse.ArgumentParser(
+        description="Intra-dataset near-deduplicating with PySpark"
+    )
     parser.add_argument(
         "--input",
         "-i",
@@ -345,7 +351,9 @@ if __name__ == "__main__":  # pragma: no cover
         required=True,
         help="Input directory of parquet files",
     )
-    parser.add_argument("--threshold", type=float, default=0.7, help="Similarity threshold")
+    parser.add_argument(
+        "--threshold", type=float, default=0.7, help="Similarity threshold"
+    )
     parser.add_argument("--ngram_size", type=int, default=5, help="N-gram size")
     parser.add_argument(
         "--min_length",
@@ -353,10 +361,14 @@ if __name__ == "__main__":  # pragma: no cover
         default=5,
         help="Minimum token length of document to be considered. Short ones will be removed",
     )
-    parser.add_argument("--num_perm", type=int, default=250, help="Number of permutations")
+    parser.add_argument(
+        "--num_perm", type=int, default=250, help="Number of permutations"
+    )
     parser.add_argument("--b", type=int, default=None, help="Number of bands")
     parser.add_argument("--r", type=int, default=None, help="Number of rows per band")
-    parser.add_argument("--column", "-c", type=str, default="content", help="Column to deduplicate on")
+    parser.add_argument(
+        "--column", "-c", type=str, default="content", help="Column to deduplicate on"
+    )
     parser.add_argument("--index", type=str, default=None, help="Column to index on")
     parser.add_argument(
         "--output",
@@ -421,7 +433,9 @@ if __name__ == "__main__":  # pragma: no cover
         spark.read.option("mergeSchema", "true")
         .parquet(args.input)
         .filter(
-            udf(ngrams_length_check, BooleanType())(F.col(args.column), F.lit(args.ngram_size), F.lit(args.min_length))
+            udf(ngrams_length_check, BooleanType())(
+                F.col(args.column), F.lit(args.ngram_size), F.lit(args.min_length)
+            )
         )
         .withColumn("__id__", F.monotonically_increasing_id())
         .persist(pyspark.StorageLevel.DISK_ONLY)
@@ -461,7 +475,9 @@ if __name__ == "__main__":  # pragma: no cover
                 permutations=PERMUTATIONS,
             )
         )  # (band_idx, band hash value, idx)
-        .groupBy(lambda x: (x[0], x[1]))  # group by (band_idx, band hash value), potential bottleneck
+        .groupBy(
+            lambda x: (x[0], x[1])
+        )  # group by (band_idx, band hash value), potential bottleneck
         .flatMap(lambda x: generate_edges([ele[2] for ele in x[1]]))
         .distinct()
     ).persist(pyspark.StorageLevel.DISK_ONLY)
@@ -499,7 +515,9 @@ if __name__ == "__main__":  # pragma: no cover
         )
         log.debug(f"Vertices DataFrame: {vertices_df.count()}")
         assignment: DataFrame = (
-            GraphFrame(vertices_df, edges_df).connectedComponents().persist(pyspark.StorageLevel.DISK_ONLY)
+            GraphFrame(vertices_df, edges_df)
+            .connectedComponents()
+            .persist(pyspark.StorageLevel.DISK_ONLY)
         )
         log.debug(f"Assignment DataFrame: {assignment.count()}")
         edges_df.unpersist()
@@ -508,12 +526,16 @@ if __name__ == "__main__":  # pragma: no cover
 
     if args.debug:
         # save assignment for debugging purposes
-        assignment.write.parquet(f"{args.output}-assignment/assignment.parquet", mode="overwrite")
+        assignment.write.parquet(
+            f"{args.output}-assignment/assignment.parquet", mode="overwrite"
+        )
 
     # region: Merge Results
     # justification: this is needed for final output
     df = df.join(
-        assignment.select(F.col("id").alias(index_column), F.col("component").alias("__component__")),
+        assignment.select(
+            F.col("id").alias(index_column), F.col("component").alias("__component__")
+        ),
         on=index_column,
         how="left",
     ).persist(pyspark.StorageLevel.DISK_ONLY)
@@ -522,7 +544,10 @@ if __name__ == "__main__":  # pragma: no cover
     # endregion
 
     df = (
-        df.filter(F.col("__component__").isNull() | (F.col("__component__") == F.col(index_column)))
+        df.filter(
+            F.col("__component__").isNull()
+            | (F.col("__component__") == F.col(index_column))
+        )
         .drop("__component__")
         .persist(pyspark.StorageLevel.DISK_ONLY)
     )

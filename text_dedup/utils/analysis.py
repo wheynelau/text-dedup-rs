@@ -41,8 +41,12 @@ def jaccard_similarity(
     >>> jaccard_similarity("hello world".split(), "hello world!".split(), ngram_size=1)
     0.3333333333333333
     """
-    words1 = {" ".join(ng) for ng in ngrams(list(doc1), ngram_size, min_length=min_length)}
-    words2 = {" ".join(ng) for ng in ngrams(list(doc2), ngram_size, min_length=min_length)}
+    words1 = {
+        " ".join(ng) for ng in ngrams(list(doc1), ngram_size, min_length=min_length)
+    }
+    words2 = {
+        " ".join(ng) for ng in ngrams(list(doc2), ngram_size, min_length=min_length)
+    }
     return len(words1 & words2) / max(1, len(words1 | words2))
 
 

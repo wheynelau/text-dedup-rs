@@ -8,8 +8,7 @@ import os
 import random
 import re
 from collections import defaultdict
-from typing import Any
-from typing import Callable
+from typing import Any, Callable
 
 import click
 import datasets
@@ -17,20 +16,11 @@ import numpy as np
 from tqdm import tqdm
 
 from text_dedup import logger
-from text_dedup.utils import CLUSTER_COLUMN
-from text_dedup.utils import INDEX_COLUMN
-from text_dedup.utils import DisableReferenceCount
-from text_dedup.utils import IOArgs
-from text_dedup.utils import MetaArgs
-from text_dedup.utils import MinHashArgs
-from text_dedup.utils import Timer
-from text_dedup.utils import UnionFind
-from text_dedup.utils import load_hf_dataset
-from text_dedup.utils import ngrams
-from text_dedup.utils import optimal_param
-from text_dedup.utils import sha1_hash
-from text_dedup.utils import xxh3_16hash
-from text_dedup.utils import xxh3_32hash
+from text_dedup.utils import (CLUSTER_COLUMN, INDEX_COLUMN,
+                              DisableReferenceCount, IOArgs, MetaArgs,
+                              MinHashArgs, Timer, UnionFind, load_hf_dataset,
+                              ngrams, optimal_param, sha1_hash, xxh3_16hash,
+                              xxh3_32hash)
 
 SEED = 42
 RNG = np.random.RandomState(SEED)
@@ -118,10 +108,13 @@ def embed_func(
     # split content on whitespace (NON_ALPHA regex), tokenize with ngrams(), and join these n-grams into a single space separated string.
     # we then convert to lower case and then bytestrings which is then hashed. Only unique hashed n-grams are left.
     tokens: set[bytes] = {
-        bytes(" ".join(t).lower(), "utf-8") for t in ngrams(NON_ALPHA.split(content.lower()), ngram_size, min_length)
+        bytes(" ".join(t).lower(), "utf-8")
+        for t in ngrams(NON_ALPHA.split(content.lower()), ngram_size, min_length)
     }
 
-    hashvalues: np.ndarray = np.array([hash_func(token) for token in tokens], dtype=dtype).reshape(len(tokens), 1)
+    hashvalues: np.ndarray = np.array(
+        [hash_func(token) for token in tokens], dtype=dtype
+    ).reshape(len(tokens), 1)
     # Permute the hash values to produce new universal hashes
     # Element-wise multiplication with 'hashvalues' and a (non 0 random value) and then adding b
     # Then, take modulo 'MODULO_PRIME' and bitwise_and with 'MAX_HASH' to keep only the necessary bits.
@@ -133,7 +126,9 @@ def embed_func(
     # Originally, byteswap was done for speed. Testing show it has a negligible impact
     # keeping  for backward compatibility, even though theoretically and empirically
     # it doesnt matter if it is there or not. github.com/ekzhu/datasketch/issues/114
-    Hs: list[bytes] = [bytes(hashvalues[start:end].byteswap().data) for start, end in hashranges]
+    Hs: list[bytes] = [
+        bytes(hashvalues[start:end].byteswap().data) for start, end in hashranges
+    ]
     return {SIGNATURE_COLUMN: Hs, INDEX_COLUMN: idx}
 
 
@@ -216,7 +211,8 @@ def main(
         with timer("Loading"):
             ds, id2id = load_hf_dataset(io_args=io_args, meta_args=meta_args)
             ds = ds.filter(
-                lambda x: len(NON_ALPHA.split(x[meta_args.column].lower())) >= minhash_args.min_length,
+                lambda x: len(NON_ALPHA.split(x[meta_args.column].lower()))
+                >= minhash_args.min_length,
                 num_proc=io_args.num_proc,
             )
 
@@ -258,7 +254,9 @@ def main(
                     contiguous=True,
                     writer_batch_size=meta_args.batch_size,
                 )
-                for key, Hs in zip(embedded_shard[INDEX_COLUMN], embedded_shard[SIGNATURE_COLUMN]):
+                for key, Hs in zip(
+                    embedded_shard[INDEX_COLUMN], embedded_shard[SIGNATURE_COLUMN]
+                ):
                     for i, H in enumerate(Hs):
                         HASH_TABLES[i][H].add(key)
         with timer("Clustering"):

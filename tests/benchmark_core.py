@@ -8,6 +8,7 @@ import click
 import datasets
 import pandas as pd
 from datasets import Features, Sequence, Value
+
 from text_dedup.minhash import main as minhash_main
 from text_dedup.minhash_rust import main as minhash_rust_main
 from text_dedup.utils import (IOArgs, MetaArgs, MinHashArgs, SimHashArgs,
@@ -126,8 +127,7 @@ def classify_in_paper(record):
             return "FP"
 
     raise ValueError(
-        f"This should not happen {duplicates} {predictions} {len(duplicates)=} {
-            len(predictions)=}"
+        f"This should not happen {duplicates} {predictions} {len(duplicates)=} {len(predictions)=}"
     )
 
 

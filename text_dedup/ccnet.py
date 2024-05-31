@@ -5,28 +5,18 @@
 # @Reference    : https://github.com/facebookresearch/cc_net/blob/main/cc_net/dedup.py
 
 import multiprocessing as mp
-from typing import Any
-from typing import Callable
-from typing import Dict
-from typing import List
+from typing import Any, Callable, Dict, List
 
 import click
 import numpy as np
 from tqdm import tqdm
 
 from text_dedup import logger
-from text_dedup.utils import INDEX_COLUMN
-from text_dedup.utils import DisableReferenceCount
-from text_dedup.utils import ExactHashArgs
-from text_dedup.utils import IOArgs
-from text_dedup.utils import MetaArgs
-from text_dedup.utils import Timer
-from text_dedup.utils import load_hf_dataset
-from text_dedup.utils import md5_digest
+from text_dedup.utils import (INDEX_COLUMN, DisableReferenceCount,
+                              ExactHashArgs, IOArgs, MetaArgs, Timer,
+                              load_hf_dataset, md5_digest)
 from text_dedup.utils import normalize as normalize_for_dedup
-from text_dedup.utils import sha256_digest
-from text_dedup.utils import xxh3_64_digest
-from text_dedup.utils import xxh3_128_digest
+from text_dedup.utils import sha256_digest, xxh3_64_digest, xxh3_128_digest
 
 HASH_SIZE = np.uint64(0).nbytes  # 8 bytes
 mp.set_start_method("fork", force=True)
@@ -35,7 +25,11 @@ ID_COLUMN = "__id__"
 
 
 def compute_hashes(
-    batch: Dict[str, Any], idx: List[int] | None, column: str, hash_func: Callable, idx_column: str | None = None
+    batch: Dict[str, Any],
+    idx: List[int] | None,
+    column: str,
+    hash_func: Callable,
+    idx_column: str | None = None,
 ) -> Dict[str, Any]:
     """
     Compute a hash for each line in the document.
@@ -61,7 +55,9 @@ def compute_hashes(
     lines = batch[column][0].split("\n")
     idx = idx[0] if idx is not None else batch[idx_column][0]
     n = len(lines)
-    hashes = [hash_func(bytes(normalize_for_dedup(line), encoding="utf-8")) for line in lines]
+    hashes = [
+        hash_func(bytes(normalize_for_dedup(line), encoding="utf-8")) for line in lines
+    ]
     return {
         HASH_COLUMN: hashes,
         ID_COLUMN: [idx for _ in range(n)],
@@ -70,7 +66,11 @@ def compute_hashes(
 
 
 def dedup(
-    record: Dict[str, Any], idx: int | None, column: str, lookup: Dict, idx_column: str | None = None
+    record: Dict[str, Any],
+    idx: int | None,
+    column: str,
+    lookup: Dict,
+    idx_column: str | None = None,
 ) -> Dict[str, Any]:
     """
     Remove duplicated lines from the document.
@@ -146,7 +146,12 @@ def main(
                 batch_size=1,
                 with_indices=False,
                 num_proc=io_args.num_proc,
-                fn_kwargs={"column": meta_args.column, "hash_func": hash_func, "idx_column": INDEX_COLUMN, "idx": None},
+                fn_kwargs={
+                    "column": meta_args.column,
+                    "hash_func": hash_func,
+                    "idx_column": INDEX_COLUMN,
+                    "idx": None,
+                },
                 remove_columns=[c for c in ds.column_names if c != INDEX_COLUMN],
                 desc="Computing hashes...",
             )
@@ -154,7 +159,11 @@ def main(
             for batch_idx in tqdm(range(0, NUM_SHARDS), desc="Processing..."):
                 ds_shard = hashed.shard(NUM_SHARDS, batch_idx, contiguous=True)
                 for h, id_, idx in tqdm(
-                    zip(ds_shard[HASH_COLUMN], ds_shard[ID_COLUMN], ds_shard[INDEX_COLUMN]),
+                    zip(
+                        ds_shard[HASH_COLUMN],
+                        ds_shard[ID_COLUMN],
+                        ds_shard[INDEX_COLUMN],
+                    ),
                     leave=False,
                 ):
                     if h in hashes:
@@ -171,7 +180,9 @@ def main(
                 desc="Deduping",
             )
             ds = ds.filter(
-                lambda x: len(x[meta_args.column]) > 0, num_proc=io_args.num_proc, desc="Filtering 0 length docs"
+                lambda x: len(x[meta_args.column]) > 0,
+                num_proc=io_args.num_proc,
+                desc="Filtering 0 length docs",
             )
 
         with timer("Saving"):
