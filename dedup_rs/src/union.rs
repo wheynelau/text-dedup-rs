@@ -1,10 +1,13 @@
-use std::{cmp::Ordering, collections::HashMap};
-use pyo3::prelude::*;
+use std::{cmp::Ordering, collections::HashMap, fs};
+use pyo3::{prelude::*, types::PyType};
+use serde::{Deserialize,Serialize};
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone,Serialize, Deserialize,Debug)]
 pub struct UnionFind {
+    #[pyo3(get)]
     parent: HashMap<usize, usize>,
+    #[pyo3(get)]
     rank: HashMap<usize, usize>,
 }
 
@@ -17,6 +20,14 @@ impl UnionFind {
             parent: HashMap::new(),
             rank: HashMap::new(),
         }
+    }
+
+    #[classmethod]
+    pub fn load(_cls: &Bound<'_, PyType>, path: &str) -> PyResult<Self> {
+        let content = fs::read_to_string(path).expect("Unable to read file");
+        let deserialized: UnionFind = serde_json::from_str(&content).unwrap();
+        Ok(deserialized)
+
     }
 
     // Find with path compression
@@ -67,8 +78,13 @@ impl UnionFind {
         self.parent.clear();
         self.rank.clear();
     }
-}
 
+    pub fn dump(&self, path: &str) -> PyResult<()> {
+        let serialized = serde_json::to_string(&self).unwrap();
+        std::fs::write(path, serialized).expect("Unable to write to file");
+        Ok(())
+    }
+}
 #[cfg(test)]
 mod tests {
     use std::time::Instant;
@@ -96,5 +112,17 @@ mod tests {
         let process_duration = start_process.elapsed();
 
         dbg!(process_duration);
+
+        // try saving
+        uf.dump("union_find.json").unwrap();
+
+        // try loading
+
+        let mut uf2 = UnionFind::load("union_find.json").unwrap();
+        assert_eq!(uf2.find(1), 1);
+        assert_eq!(uf2.find(2), 1);
+        assert_eq!(uf2.find(3), 1);
+        assert_eq!(uf.find(7), 7);
+
     }
 }

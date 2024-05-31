@@ -168,5 +168,6 @@ impl EmbedFunc {
 #[pymodule]
 fn dedup_rs(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<EmbedFunc>()?;
+    m.add_class::<union::UnionFind>()?;
     Ok(())
 }
