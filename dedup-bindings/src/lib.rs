@@ -1,9 +1,13 @@
+use ndarray::ArcArray1;
 use pyo3::{prelude::*, types::PyType};
 use std::collections::{HashMap,HashSet};
 use rayon::prelude::*;
 
 mod embed;
 mod union;
+mod utils;
+
+const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
 
 #[pyclass]
 struct EmbedFunc {
@@ -14,6 +18,7 @@ struct EmbedFunc {
     hash_tables: Vec<HashMap<String, HashSet<i32>>>,
     #[pyo3(get)]
     edges: Vec<(i32, i32)>,
+    permutations: (ArcArray1<u64>, ArcArray1<u64>),
 }
 
 enum SIG {
@@ -41,16 +46,16 @@ impl EmbedFunc {
     #[new]
     fn new(threshold:f64, num_perm:i32,false_positive:f64, false_negative:f64,
         main_col: &str, idx_col: &str, ) -> Self {
-        let (b, r) = embed::optimal_param(threshold, num_perm, false_positive, false_negative);
-        Self::shared_init(b, r, main_col, idx_col)
+        let (b, r) = utils::optimal_param(threshold, num_perm, false_positive, false_negative);
+        Self::shared_init(b, r, num_perm, main_col, idx_col)
     }
     #[classmethod]
-    fn from_b_r(_cls: &Bound<'_, PyType>, b:i32, r:i32, main_col: &str, idx_col: &str) -> Self {
+    fn from_b_r(_cls: &Bound<'_, PyType>, b:i32, r:i32, num_perm:i32, main_col: &str, idx_col: &str) -> Self {
 
-        Self::shared_init(b, r, main_col, idx_col)
+        Self::shared_init(b, r, num_perm, main_col, idx_col)
     }
     #[staticmethod]
-    fn shared_init(b:i32, r:i32, main_col: &str, idx_col: &str) -> Self {
+    fn shared_init(b:i32, r:i32, num_perm:i32, main_col: &str, idx_col: &str) -> Self {
 
         let hash_ranges: Vec<(i32, i32)> = (0..b)
                         .map(|i| (i * r, (i + 1) * r))
@@ -58,19 +63,21 @@ impl EmbedFunc {
 
         let hash_tables: Vec<HashMap<String, HashSet<i32>>> = vec![HashMap::new(); b as usize];
         let edges: Vec<(i32, i32)> = Vec::new();
+        let permutations = embed::generate_permutations(MODULE_PRIME as usize, num_perm);
         EmbedFunc {
             hash_values: hash_ranges,
             main_col: main_col.to_string(),
             idx_col: idx_col.to_string(),
             hash_tables,
             edges,
+            permutations,
         }
     }
     ///
     /// Not in use unless its for single line
     /// 
     fn embed_func(&self, text:&str, idx: i32) -> HashMap<String, SIG>{
-        let hs: Vec<String> = embed::py_embed_func(&text, self.hash_values.to_vec());
+        let hs: Vec<String> = embed::py_embed_func(&text, self.permutations.clone(),self.hash_values.to_vec());
 
         let mut map = HashMap::new();
         map.insert(self.main_col.to_string(), SIG::SIGNATURE(hs));
@@ -101,7 +108,7 @@ impl EmbedFunc {
     fn batch_embed_shard(&mut self, text: Vec<String>, idx: Vec<i32>) {
         let text_idx: Vec<(Vec<String>,i32)> = text.par_iter().zip(idx.par_iter())
             .map( |(s, &i)| {
-                let mapped = embed::py_embed_func(&s, self.hash_values.to_vec());
+                let mapped =  embed::py_embed_func(&s, self.permutations.clone(),self.hash_values.to_vec());
                 (mapped , i)
             }).collect();
         
