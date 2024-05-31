@@ -6,15 +6,11 @@ import click
 import datasets
 import pandas as pd
 from sklearn.metrics import adjusted_rand_score
-
 from text_dedup.ann_unisim import main as unisim_main
 from text_dedup.minhash import main as minhash_main
 from text_dedup.simhash import main as simhash_main
-from text_dedup.utils import IOArgs
-from text_dedup.utils import MetaArgs
-from text_dedup.utils import MinHashArgs
-from text_dedup.utils import SimHashArgs
-from text_dedup.utils import UniSimArgs
+from text_dedup.utils import (IOArgs, MetaArgs, MinHashArgs, SimHashArgs,
+                              UniSimArgs)
 from text_dedup.utils.preprocess import news_copy_preprocessing
 from text_dedup.utils.timer import Timer
 from text_dedup.utils.union_find import UnionFind
@@ -105,9 +101,16 @@ if __name__ == "__main__":
             --num_perm 256
             --ngram 2
             --debug
-        """.split("\n")
+        """.split(
+            "\n"
+        )
         subprocess.run(
-            [part.strip() for line in spark_args for part in line.strip().split(" ") if part.strip()],
+            [
+                part.strip()
+                for line in spark_args
+                for part in line.strip().split(" ")
+                if part.strip()
+            ],
         )  # nosec
         spark_assignment_to_uf(f"{spark_output}-assignment/assignment.parquet")
 

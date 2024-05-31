@@ -126,7 +126,8 @@ def classify_in_paper(record):
             return "FP"
 
     raise ValueError(
-        f"This should not happen {duplicates} {predictions} {len(duplicates)=} {len(predictions)=}"
+        f"This should not happen {duplicates} {predictions} {len(duplicates)=} {
+            len(predictions)=}"
     )
 
 
