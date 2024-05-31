@@ -1,35 +1,25 @@
 use lazy_static::lazy_static;
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 use rand::{distributions::Uniform, Rng, SeedableRng};
 use regex::Regex;
 use sha1::{Sha1, Digest};
 use byteorder::{ByteOrder, LittleEndian};
 use ndarray::ArcArray1;
-
+use base64::{Engine as _, engine::{self, general_purpose}, alphabet};
 
 const D :u32 = 32;
 const RIEMANN_DIVISIONS: u32 = 100;
 const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
 const MAX_HASH:u64 = 2u64.pow(D) - 1;
-const N: i32 = 3;
+const NUM_PERM: i32 = 200;
+const N: i32 = 2;
 const MIN_LENGTH:i32 = 5;
 
 lazy_static! {
     static ref RE:Regex = Regex::new(r"\W+").unwrap();
+    static ref PERMUTATIONS: (ArcArray1<u64>, ArcArray1<u64>) = generate_permutations(MODULE_PRIME as usize);
 }
 
-#[derive(Debug)]
-pub struct EmbedFuncParams {
-    // content: String,
-    // idx: usize,
-    // num_perm: usize,
-    // ngram_size: usize,
-    // min_length: usize,
-    // hashranges: Vec<(usize, usize)>,
-    // permutations: (Vec<u32>, Vec<u32>),
-    // max_hash: u32,
-    // modulo_prime: u32,
-}
 fn ngrams(sequence: Vec<&str>, n: i32, min_length: i32) -> Vec<Vec<&str>> {
     if sequence.len() < min_length as usize {
         return vec![];
@@ -40,7 +30,8 @@ fn ngrams(sequence: Vec<&str>, n: i32, min_length: i32) -> Vec<Vec<&str>> {
     sequence.windows(n as usize).map(|window| window.to_vec()).collect()
 }
 
-fn sha1_hash(data: &[u8], d: u32) -> u64 {
+fn sha1_hash(data: &[u8]) -> u64 {
+    let d = D;
     let mut hasher = Sha1::new();
     hasher.update(data);
     let result = hasher.finalize();
@@ -56,24 +47,32 @@ fn sha1_hash(data: &[u8], d: u32) -> u64 {
         },
     }
 }
-pub fn tokenize(text: &str, n: i32, min_length: i32) -> BTreeSet<Vec<u8>> {
+pub fn tokenize(text: &str, n: i32, min_length: i32) -> HashSet<Vec<u8>> {
     // let text: String = text.to_lowercase();
 
     let filtered_content: Vec<&str> = RE.split(&text)
                                         .filter(|s| !s.is_empty())
                                         .collect();
     
-    let tokens: BTreeSet<Vec<u8>> = ngrams(filtered_content, n, min_length)
+    let tokens: HashSet<Vec<u8>> = ngrams(filtered_content, n, min_length)
     .into_iter()
-    .map(|vec| vec.join(" "))
-    .map(|s| s.into_bytes()) // Convert String to Vec<u8>
+    .map(|vec| {
+        let mut bytes = Vec::new();
+        for (i, s) in vec.iter().enumerate() {
+            if i > 0 {
+                bytes.push(32); // Append a space before each word except the first
+            }
+            bytes.extend_from_slice(s.as_bytes());
+        }
+        bytes
+    })
     .collect();
     
     tokens
 }
-pub fn hash_tokens(tokens: BTreeSet<Vec<u8>>, d: u32) -> Vec<u64> {
+pub fn hash_tokens(tokens: HashSet<Vec<u8>>) -> Vec<u64> {
     tokens.iter()
-        .map(|token| sha1_hash(token, d))
+        .map(|token| sha1_hash(token))
         .collect()
 }
 
@@ -82,13 +81,13 @@ fn generate_permutations(module_prime: usize) -> (ArcArray1<u64>, ArcArray1<u64>
     let dist_a = Uniform::new(1, module_prime); // Range is [1, modulo_prime)
     let dist_b = Uniform::new(0, module_prime); // Range is [0, modulo_prime)
 
-    let a: ArcArray1<u64> = (0..200) // Assuming you want 200 elements as per previous context
+    let a: ArcArray1<u64> = (0..NUM_PERM) // Assuming you want NUM_PERM elements as per previous context
         .map(|_| rng.sample(&dist_a) as u64)
         .collect::<Vec<_>>()
         .into_iter()
         .collect();
 
-    let b: ArcArray1<u64> = (0..200) // Assuming you want 200 elements as per previous context
+    let b: ArcArray1<u64> = (0..NUM_PERM) // Assuming you want NUM_PERM elements as per previous context
         .map(|_| rng.sample(&dist_b) as u64)
         .collect::<Vec<_>>()
         .into_iter()
@@ -145,13 +144,11 @@ pub fn optimal_param(threshold: f64,
 
 pub fn py_embed_func(text: &str, hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
 
+    let (a, b) = PERMUTATIONS.clone();
+
     let tokens = tokenize(&text, N, MIN_LENGTH);
 
-    let (a, b) = generate_permutations(MODULE_PRIME as usize);
-
-    let hashes: Vec<u64> = hash_tokens(tokens, D);
-
-    // dbg!(&hashes[0]);
+    let hashes: Vec<u64> = hash_tokens(tokens);
 
     let mut result: Vec<Vec<u64>> = Vec::with_capacity(hashes.len() + 1);
 
@@ -168,8 +165,6 @@ pub fn py_embed_func(text: &str, hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
     let max_hash_vec: Vec<u64> = vec![MAX_HASH as u64; a.len()];
     result.push(max_hash_vec);
 
-    // dbg!(&result[0]);
-
     // find the min of each column
     let num_cols = result[0].len();
     let mut hashvalues: Vec<u64> = Vec::with_capacity(num_cols);
@@ -185,10 +180,18 @@ pub fn py_embed_func(text: &str, hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
     let hs: Vec<String> = hash_ranges.iter().map(|(start, end)| {
         let start = *start as usize;
         let end = *end as usize;
-        let inner_vec: Vec<u8> = hashvalues[start..end].iter().flat_map(|&x| x.to_le_bytes().to_vec()).collect();
-        hex::encode(&inner_vec)
+        let inner_vec : Vec<u8> = hashvalues[start..end].iter().flat_map(|&x| x.to_le_bytes().to_vec()).collect();
+        general_purpose::STANDARD.encode(&inner_vec)
     }).collect();
-
+    // let hs: Vec<Vec<u8>> = hash_ranges.iter().map(|&(start, end)| {
+    //     let slice = &hashvalues[start as usize..end as usize]; // Convert the range to usize
+    //     let mut swapped_bytes = Vec::new();
+    //     for &value in slice {
+    //         // Assuming `hashvalues` is a slice of u32 or similar, adjust the type accordingly
+    //         swapped_bytes.extend_from_slice(&value.to_be_bytes());
+    //     }
+    //     swapped_bytes
+    // }).collect();
     hs
 }
 
@@ -197,7 +200,7 @@ fn main() {
 
     // These functions are fixed for all iterations
 
-    let (b, r) = optimal_param(0.5, 200, 0.5, 0.5);
+    let (b, r) = optimal_param(0.5, NUM_PERM, 0.5, 0.5);
 
     let hash_ranges: Vec<(i32,i32)> = (0..b)
                     .map(|i| (i*r, (i+1)*r))
@@ -233,7 +236,7 @@ mod tests {
     #[test]
     fn test_embed_fn() {
         let threshold = 0.5;
-        let num_perm = 200;
+        let num_perm = NUM_PERM;
         let false_positive_weight = 0.5;
         let false_negative_weight = 0.5;
 

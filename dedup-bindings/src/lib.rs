@@ -1,4 +1,5 @@
 
+use ndarray::ArcArray1;
 use pyo3::prelude::*;
 use std::collections::BTreeMap;
 use rayon::prelude::*;
@@ -24,7 +25,7 @@ impl IntoPy<PyObject> for SIG {
     fn into_py(self, py: Python) -> PyObject {
         match self {
             SIG::SIGNATURE(vec) => {
-                let py_list: PyObject = vec.into_py(py);  // Convert Vec<String> to Python list
+                let py_list: PyObject = vec.into_py(py);  // Convert Vec<Vec<u8>> to Python list[list]
                 py_list
             },
             SIG::INDEX(index) => {
@@ -44,6 +45,7 @@ impl EmbedFunc {
         let hash_ranges: Vec<(i32, i32)> = (0..B)
                         .map(|i| (i * R, (i + 1) * R))
                         .collect();
+
         
         EmbedFunc {
             b: 50,
@@ -68,11 +70,11 @@ impl EmbedFunc {
 
         let new_text : Vec<SIG> = text.par_iter()
             .map(|s| {
-                let mapped = (embed::py_embed_func(&s, self.hash_values.to_vec()));
+                let mapped = embed::py_embed_func(&s, self.hash_values.to_vec());
                 SIG::SIGNATURE(mapped)
             }).collect();
         
-        BTreeMap::from([(self.main_col.to_string(), new_text)])
+        BTreeMap::from([(self.main_col.to_string(), new_text), (self.idx_col.to_string(), idx.into_iter().map(SIG::INDEX).collect())])
     }
 
 }

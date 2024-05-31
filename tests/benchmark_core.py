@@ -10,9 +10,16 @@ from datasets import Features
 from datasets import Sequence
 from datasets import Value
 
+import sys
+sys.path = ['/home/wayne/kioxia/github/text-dedup', '/home/wayne/kioxia/envs/text-dedup/lib/python311.zip', '/home/wayne/kioxia/envs/text-dedup/lib/python3.11', '/home/wayne/kioxia/envs/text-dedup/lib/python3.11/lib-dynload', '', '/home/wayne/kioxia/envs/text-dedup/lib/python3.11/site-packages']
+print(f"{os.path.exists('text_dedup/minhash_rust.py')}")
+print("Current Working Directory:", os.getcwd())
+print("Python Path:", sys.path)
+
 from text_dedup.ann_unisim import main as unisim_main
 from text_dedup.minhash import main as minhash_main
 from text_dedup.simhash import main as simhash_main
+from text_dedup.minhash_rust import main as minhash_rust_main
 from text_dedup.utils import IOArgs
 from text_dedup.utils import MetaArgs
 from text_dedup.utils import MinHashArgs
@@ -243,43 +250,54 @@ if __name__ == "__main__":
     )
     meta_args = MetaArgs(column="text", batch_size=10000)
 
-    with t("MinHash Spark"):
-        spark_output = "./temp_output_spark"
-        spark_args = f"""
-        spark-submit --executor-memory 86g
-            --driver-memory 8g
-            --executor-cores 2
-            --num-executors 2
-            --packages graphframes:graphframes:0.8.2-spark3.2-s_2.12
-            --conf spark.executor.extraJavaOptions=-Dlog4j.configuration=./log4j.properties
-            --conf spark.driver.extraJavaOptions=-Dlog4j.configuration=./log4j.properties
-            text_dedup/minhash_spark.py
-            --input ./temp_inp_paruqet
-            --output {spark_output}
-            --column text
-            --index id
-            --threshold 0.5
-            --num_perm 200
-            --b 50
-            --r 4
-            --ngram 2
-            --debug
-        """.split("\n")
-        subprocess.run(
-            [part.strip() for line in spark_args for part in line.strip().split(" ") if part.strip()],
-        )  # nosec
-        spark_assignment_to_uf(f"{spark_output}-assignment/assignment.parquet")
+    # with t("MinHash Spark"):
+    #     spark_output = "./temp_output_spark"
+    #     spark_args = f"""
+    #     spark-submit --executor-memory 86g
+    #         --driver-memory 8g
+    #         --executor-cores 2
+    #         --num-executors 2
+    #         --packages graphframes:graphframes:0.8.2-spark3.2-s_2.12
+    #         --conf spark.executor.extraJavaOptions=-Dlog4j.configuration=./log4j.properties
+    #         --conf spark.driver.extraJavaOptions=-Dlog4j.configuration=./log4j.properties
+    #         text_dedup/minhash_spark.py
+    #         --input ./temp_inp_paruqet
+    #         --output {spark_output}
+    #         --column text
+    #         --index id
+    #         --threshold 0.5
+    #         --num_perm 200
+    #         --b 50
+    #         --r 4
+    #         --ngram 2
+    #         --debug
+    #     """.split("\n")
+    #     subprocess.run(
+    #         [part.strip() for line in spark_args for part in line.strip().split(" ") if part.strip()],
+    #     )  # nosec
+    #     spark_assignment_to_uf(f"{spark_output}-assignment/assignment.parquet")
 
-    with t("SimHash"):
-        ctx = click.Context(simhash_main)
-        simhash_args = SimHashArgs(bit_diff=7, num_bucket=8, ngram=3)
-        io_args.output = simhash_output = "./temp_output_simhash"
+    with t("MinRust"):
+        ctx = click.Context(minhash_rust_main)
+        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
+        io_args.output = minhash_output_rust = "./temp_output_minhash_rust"
         ctx.invoke(
-            simhash_main,
+            minhash_rust_main,
             io_args=io_args,
             meta_args=meta_args,
-            simhash_args=simhash_args,
+            minhash_args=minhash_args,
         )
+
+    # with t("SimHash"):
+    #     ctx = click.Context(simhash_main)
+    #     simhash_args = SimHashArgs(bit_diff=7, num_bucket=8, ngram=3)
+    #     io_args.output = simhash_output = "./temp_output_simhash"
+    #     ctx.invoke(
+    #         simhash_main,
+    #         io_args=io_args,
+    #         meta_args=meta_args,
+    #         simhash_args=simhash_args,
+    #     )
 
     with t("MinHash"):
         ctx = click.Context(minhash_main)
@@ -292,26 +310,26 @@ if __name__ == "__main__":
             minhash_args=minhash_args,
         )
 
-    with t("UniSim"):
-        ctx = click.Context(unisim_main)
-        unisim_args = UniSimArgs(
-            store_data=False,
-            index_type="approx",
-            similarity_threshold=0.86,
-        )
-        io_args.output = unisim_output = "./temp_output_unisim"
-        meta_args.batch_size = 48
-        ctx.invoke(
-            unisim_main,
-            io_args=io_args,
-            meta_args=meta_args,
-            unisim_args=unisim_args,
-        )
+    # with t("UniSim"):
+    #     ctx = click.Context(unisim_main)
+    #     unisim_args = UniSimArgs(
+    #         store_data=False,
+    #         index_type="approx",
+    #         similarity_threshold=0.86,
+    #     )
+    #     io_args.output = unisim_output = "./temp_output_unisim"
+    #     meta_args.batch_size = 48
+    #     ctx.invoke(
+    #         unisim_main,
+    #         io_args=io_args,
+    #         meta_args=meta_args,
+    #         unisim_args=unisim_args,
+    #     )
 
-    uf2results(f"{unisim_output}/uf.pkl", "UniSim", t.elapsed_times.get("UniSim"))
-    uf2results(f"{spark_output}/uf.pkl", "MinHash Spark", t.elapsed_times.get("MinHash Spark"))
+    # uf2results(f"{unisim_output}/uf.pkl", "UniSim", t.elapsed_times.get("UniSim"))
+    # uf2results(f"{spark_output}/uf.pkl", "MinHash Spark", t.elapsed_times.get("MinHash Spark"))
     uf2results(f"{minhash_output}/uf.pkl", "MinHash", t.elapsed_times.get("MinHash"))
-    uf2results(f"{simhash_output}/uf.pkl", "SimHash", t.elapsed_times.get("SimHash"))
+    uf2results(f"{minhash_output_rust}/uf.pkl", "MinHashRust", t.elapsed_times.get("MinRust"))
     exact_title_results(ds=ds, name="Exact Title")
 
     print(
