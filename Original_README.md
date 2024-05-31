@@ -1,4 +1,4 @@
-<center><img src="./banner.png"/ style="background-color:white;"></center>
+<center><img src="https://preview.redd.it/t7ns9qtb5gh81.jpg?auto=webp&s=d19d2ed24ff0b62572ef5a390abd7bb6e0c880f0"/ style="background-color:white;"></center>
 
 ![GitHub](https://img.shields.io/github/license/ChenghaoMou/text-dedup) [![Codacy Badge](https://app.codacy.com/project/badge/Grade/cc66178e49d24908ac1fb2b2dbe4e5b3)](https://www.codacy.com/gh/ChenghaoMou/text-dedup/dashboard?utm_source=github.com&utm_medium=referral&utm_content=ChenghaoMou/text-dedup&utm_campaign=Badge_Grade) [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/cc66178e49d24908ac1fb2b2dbe4e5b3)](https://www.codacy.com/gh/ChenghaoMou/text-dedup/dashboard?utm_source=github.com&utm_medium=referral&utm_content=ChenghaoMou/text-dedup&utm_campaign=Badge_Coverage) [![DOI](https://zenodo.org/badge/347428086.svg)](https://zenodo.org/badge/latestdoi/347428086)
 
