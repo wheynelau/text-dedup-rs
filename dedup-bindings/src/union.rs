@@ -1,16 +1,21 @@
-use std::collections::BTreeMap;
+use std::{cmp::Ordering, collections::HashMap};
+use pyo3::prelude::*;
 
-struct UnionFind {
-    parent: BTreeMap<usize, usize>,
-    rank: BTreeMap<usize, usize>,
+#[pyclass]
+#[derive(Clone)]
+pub struct UnionFind {
+    parent: HashMap<usize, usize>,
+    rank: HashMap<usize, usize>,
 }
 
+#[pymethods]
 impl UnionFind {
     // Constructor to create a new UnionFind instance
+    #[new]
     pub fn new() -> Self {
         UnionFind {
-            parent: BTreeMap::new(),
-            rank: BTreeMap::new(),
+            parent: HashMap::new(),
+            rank: HashMap::new(),
         }
     }
 
@@ -20,17 +25,18 @@ impl UnionFind {
         let parent_value = *self.parent.entry(x).or_insert(x);
     
         // Check if we need to recurse to compress the path.
-        if parent_value != x {
+        if parent_value == x {
+            // If the parent is the root, return the root.
+            parent_value
+        } else {
+            // If the parent is not the root, recurse to find the root.
             let root = self.find(parent_value);
-            // Re-insert the value with the updated root after the mutable borrow ends.
-            *self.parent.entry(x).or_insert(x) = root;
+            // Update the parent to the root.
+            self.parent.insert(x, root);
+            root
         }
-    
-        // Return the final root, which is now guaranteed to be correct.
-        self.parent[&x]
     }
 
-    // Union by rank
     pub fn union(&mut self, x: usize, y: usize) {
         let root_x = self.find(x);
         let root_y = self.find(y);
@@ -39,13 +45,20 @@ impl UnionFind {
             let rank_x = *self.rank.entry(root_x).or_insert(0);
             let rank_y = *self.rank.entry(root_y).or_insert(0);
 
-            if rank_x > rank_y {
-                self.parent.insert(root_y, root_x);
-            } else if rank_x < rank_y {
-                self.parent.insert(root_x, root_y);
-            } else {
-                self.parent.insert(root_y, root_x);
-                *self.rank.entry(root_x).or_insert(0) += 1;
+            match rank_x.cmp(&rank_y) {
+                Ordering::Greater => {
+                    // If rank_x is greater than rank_y, make root_x the parent of root_y
+                    self.parent.insert(root_y, root_x);
+                },
+                Ordering::Less => {
+                    // If rank_x is less than rank_y, make root_y the parent of root_x
+                    self.parent.insert(root_x, root_y);
+                },
+                Ordering::Equal => {
+                    // If ranks are equal, make root_x the parent of root_y and increment the rank of root_x
+                    self.parent.insert(root_y, root_x);
+                    *self.rank.entry(root_x).or_insert(0) += 1;
+                }
             }
         }
     }
