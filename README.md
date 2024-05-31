@@ -12,7 +12,8 @@
   - [How to run](#how-to-run)
   - [Changes made to original code](#changes-made-to-original-code)
   - [Results](#results)
-  - [TODO:](#todo)
+  - [Issues](#issues)
+  - [TODO](#todo)
 
 
 ## Description
@@ -36,7 +37,6 @@ I have not tested on another fresh environment so expect "It works on my machine
 # this assumes you have python, environment management is up to you
 pip install -e . # editable mode
 cd dedup-rs
-maturin build --release # wondering if this is correct
 pip install .
 cd ..
 python tests/benchmark_core.py
@@ -49,6 +49,8 @@ python tests/benchmark_core.py
 - Added a minhashrust run to benchmark core
 
 ## Results
+
+Only benchmark_core was tested.  
 
 | Algorithm   |   Precision (Duplicates) |   Recall (Duplicates) |   Precision (Non Duplicates) |   Recall (Non Duplicates) |   Macro F1 score |   Accuracy | Time   |
 |:------------|-------------------------:|----------------------:|-----------------------------:|--------------------------:|-----------------:|-----------:|:-------|
@@ -75,7 +77,13 @@ python:
  INFO     Total                           : 21.41s timer.py:65  
  INFO     Before                          : 100000 minhash.py:306  
  INFO     After                           : 72208    
-## TODO:
+
+## Issues
+
+One caveat I noticed was that rust didn't produce tuples with whitespaces, for example  ("a", "b" "c") instead of  
+ (" ", "a", "b") which is what python produced. It may affect the results but I'm not sure.
+
+## TODO
 - [ ] Write setup.py
 - [ ] Remove hard codes
 - [ ] End goal: Make it work with pyspark
