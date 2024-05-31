@@ -245,7 +245,7 @@ def main(
             LEN_EMBEDDED = len(embedded)
             NUM_SHARDS = np.ceil(LEN_EMBEDDED / meta_args.batch_size).astype(int)
 
-        with timer("Clustering"):
+        with timer("Sharding"):
             edges = []
             for i in tqdm(
                 range(0, NUM_SHARDS),
@@ -261,7 +261,7 @@ def main(
                 for key, Hs in zip(embedded_shard[INDEX_COLUMN], embedded_shard[SIGNATURE_COLUMN]):
                     for i, H in enumerate(Hs):
                         HASH_TABLES[i][H].add(key)
-
+        with timer("Clustering"):
             logger.info(f"Number of clusters: {len(HASH_TABLES)}")
             for table in tqdm(HASH_TABLES, dynamic_ncols=True, desc="Clustering..."):
                 # cluster: Set[int]

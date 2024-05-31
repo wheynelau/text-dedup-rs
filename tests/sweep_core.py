@@ -1,24 +1,17 @@
 import os
 import pickle  # nosec
 from collections import defaultdict
-from contextlib import contextmanager
-from contextlib import redirect_stderr
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from os import devnull
 
 import click
 import datasets
 import pandas as pd
-from datasets import Features
-from datasets import Sequence
-from datasets import Value
-from tqdm import tqdm
-
+from datasets import Features, Sequence, Value
 from text_dedup.simhash import main as simhash_main
-from text_dedup.utils import IOArgs
-from text_dedup.utils import MetaArgs
-from text_dedup.utils import SimHashArgs
+from text_dedup.utils import IOArgs, MetaArgs, SimHashArgs
 from text_dedup.utils.timer import Timer
+from tqdm import tqdm
 
 NUM_PROC = os.cpu_count()
 
@@ -58,7 +51,11 @@ def uf2results(path: str, name: str, time: float):
         id2cluster[cluster].add(idx)
 
     predictions = {
-        id2core_id[x["id"]]: {id2core_id[neighbor] for neighbor in id2cluster[uf.find(x["id"])] if neighbor != x["id"]}
+        id2core_id[x["id"]]: {
+            id2core_id[neighbor]
+            for neighbor in id2cluster[uf.find(x["id"])]
+            if neighbor != x["id"]
+        }
         for x in truth
     }
     df = (
@@ -67,9 +64,16 @@ def uf2results(path: str, name: str, time: float):
         .reset_index()
         .merge(pd.Series(predictions).to_frame("predictions").reset_index(), on="index")
     )
-    df["Correct"] = df.apply(lambda row: set(row["duplicates"]) == set(row["predictions"]), axis=1).astype(int)
-    prediction_summary = {"Correct": df["Correct"].sum(), "Incorrect": df.shape[0] - df["Correct"].sum()}
-    prediction_summary["Accuracy"] = round(prediction_summary["Correct"] / df.shape[0], 4)
+    df["Correct"] = df.apply(
+        lambda row: set(row["duplicates"]) == set(row["predictions"]), axis=1
+    ).astype(int)
+    prediction_summary = {
+        "Correct": df["Correct"].sum(),
+        "Incorrect": df.shape[0] - df["Correct"].sum(),
+    }
+    prediction_summary["Accuracy"] = round(
+        prediction_summary["Correct"] / df.shape[0], 4
+    )
     recalls = df.apply(_recall, axis=1)
     prediction_summary["Recall"] = round(recalls.mean(), 4)
     precisions = df.apply(_precision, axis=1)
@@ -127,7 +131,10 @@ def classify_in_paper(record):
         if LEN_DUPLICATES == 0 or not duplicates.issubset(predictions):
             return "FP"
 
-    raise ValueError(f"This should not happen {duplicates} {predictions} {len(duplicates)=} {len(predictions)=}")
+    raise ValueError(
+        f"This should not happen {duplicates} {predictions} {len(duplicates)=} {
+            len(predictions)=}"
+    )
 
 
 def inverse(label: str) -> str:
@@ -140,14 +147,28 @@ if __name__ == "__main__":
 
     (
         datasets.load_dataset(
-            "pinecone/core-2020-05-10-deduplication", split="train", cache_dir="./cache", num_proc=NUM_PROC
+            "pinecone/core-2020-05-10-deduplication",
+            split="train",
+            cache_dir="./cache",
+            num_proc=NUM_PROC,
         )
-        .map(lambda x: {"text": " ".join((x["processed_title"], x["processed_abstract"])).lower()}, num_proc=NUM_PROC)
+        .map(
+            lambda x: {
+                "text": " ".join(
+                    (x["processed_title"], x["processed_abstract"])
+                ).lower()
+            },
+            num_proc=NUM_PROC,
+        )
         .save_to_disk("temp_inp_ds")
     )
     ds = datasets.load_from_disk("temp_inp_ds")
     truth = ds.map(
-        lambda x, idx: {"core_id": x["core_id"], "id": idx, "duplicates": x["labelled_duplicates"]},
+        lambda x, idx: {
+            "core_id": x["core_id"],
+            "id": idx,
+            "duplicates": x["labelled_duplicates"],
+        },
         remove_columns=ds.column_names,
         with_indices=True,
         num_proc=NUM_PROC,
@@ -160,7 +181,10 @@ if __name__ == "__main__":
         ),
     )
     id2core_id = {x["id"]: int(x["core_id"]) for x in truth}
-    labels = {int(x["core_id"]): set(map(int, x["duplicates"])) if x["duplicates"] else set() for x in truth}
+    labels = {
+        int(x["core_id"]): set(map(int, x["duplicates"])) if x["duplicates"] else set()
+        for x in truth
+    }
 
     io_args = IOArgs(
         path="./temp_inp_ds",
@@ -188,7 +212,9 @@ if __name__ == "__main__":
                     simhash_args=simhash_args,
                 )
 
-            metrics = uf2results(f"{simhash_output}/uf.pkl", "SimHash", t.elapsed_times.get("SimHash"))
+            metrics = uf2results(
+                f"{simhash_output}/uf.pkl", "SimHash", t.elapsed_times.get("SimHash")
+            )
             metrics["bit_diff"] = bd
             metrics["ngram"] = ng
             results.append(metrics)

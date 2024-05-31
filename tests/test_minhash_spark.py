@@ -27,9 +27,16 @@ def test_minhash():
         --output ./temp-output
         --column text
         --threshold 0.7
-    """.split("\n")
+    """.split(
+        "\n"
+    )
     result = subprocess.run(
-        [part.strip() for line in args for part in line.strip().split(" ") if part.strip()],
+        [
+            part.strip()
+            for line in args
+            for part in line.strip().split(" ")
+            if part.strip()
+        ],
         capture_output=True,
         text=True,
     )  # nosec

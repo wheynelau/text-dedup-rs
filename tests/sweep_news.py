@@ -1,9 +1,7 @@
 import os
 import pickle  # nosec
 import shutil
-from contextlib import contextmanager
-from contextlib import redirect_stderr
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from copy import deepcopy
 from os import devnull
 
@@ -11,14 +9,11 @@ import click
 import datasets
 import pandas as pd
 from sklearn.metrics import adjusted_rand_score
-from tqdm import tqdm
-
 from text_dedup.simhash import main as simhash_main
-from text_dedup.utils import IOArgs
-from text_dedup.utils import MetaArgs
-from text_dedup.utils import SimHashArgs
+from text_dedup.utils import IOArgs, MetaArgs, SimHashArgs
 from text_dedup.utils.preprocess import news_copy_preprocessing
 from text_dedup.utils.timer import Timer
+from tqdm import tqdm
 
 NUM_PROC = os.cpu_count()
 

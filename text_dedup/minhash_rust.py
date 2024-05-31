@@ -7,6 +7,7 @@ import multiprocessing as mp
 import os
 import random
 import re
+import time
 from collections import defaultdict
 from typing import Any
 from typing import Callable
@@ -71,9 +72,6 @@ def main(
             false_negative_weight=0.5,
         )
 
-    HASH_RANGES = [(i * R, (i + 1) * R) for i in range(B)]
-    HASH_TABLES: list[dict[int, set]] = [defaultdict(set) for _ in range(B)]
-
     timer = Timer()
 
     with timer("Total"):
@@ -83,14 +81,13 @@ def main(
                 lambda x: len(NON_ALPHA.split(x[meta_args.column].lower())) >= minhash_args.min_length,
                 num_proc=io_args.num_proc,
             )
-        Emb = EmbedFunc(threshold =0.5, num_perm=200, false_positive=0.5, false_negative=0.5,
-                main_col = SIGNATURE_COLUMN, idx_col = INDEX_COLUMN)
+        Emb = EmbedFunc.from_b_r(B, R, SIGNATURE_COLUMN, INDEX_COLUMN)
         
         LEN_DATASET = len(ds)
 
-        with timer("MinHashing Rust"):
-            embedded = ds.map(
-                    Emb.batched_embed_func,
+        with timer("Fused embedding, sharding"):
+            ds.map(
+                    Emb.batch_embed_shard,
                     input_columns=[meta_args.column, INDEX_COLUMN],
                     remove_columns=[col for col in ds.column_names if col != INDEX_COLUMN],
                     batched=True,
@@ -98,37 +95,9 @@ def main(
                     with_indices=False,
                     desc="Fingerprinting with rust...",
                 )
-            LEN_EMBEDDED = len(embedded)
-            NUM_SHARDS = np.ceil(LEN_EMBEDDED / meta_args.batch_size).astype(int)
 
         with timer("Clustering"):
-            edges = []
-            for i in tqdm(
-                range(0, NUM_SHARDS),
-                dynamic_ncols=True,
-                desc="Iterating MinHashes...",  # noqa: E501
-            ):
-                embedded_shard = embedded.shard(
-                    num_shards=NUM_SHARDS,
-                    index=i,
-                    contiguous=True,
-                    writer_batch_size=meta_args.batch_size,
-                )
-                for key, Hs in zip(embedded_shard[INDEX_COLUMN], embedded_shard[SIGNATURE_COLUMN]):
-                    for i, H in enumerate(Hs):
-                        HASH_TABLES[i][H].add(key)
-
-            logger.info(f"Number of clusters: {len(HASH_TABLES)}")
-            for table in tqdm(HASH_TABLES, dynamic_ncols=True, desc="Clustering..."):
-                # cluster: Set[int]
-                for cluster in table.values():
-                    if len(cluster) <= 1:
-                        continue
-                    idx = min(cluster)
-                    for x in cluster:
-                        edges.append((x, idx))
-                        uf.union(x, idx)
-            logger.info(f"Number of edges: {len(set(edges))}")
+            uf = Emb.cluster()
 
         with timer("Filtering"), DisableReferenceCount():
             ds = ds.map(
@@ -152,6 +121,8 @@ def main(
             final_data = final_data.remove_columns([CLUSTER_COLUMN, INDEX_COLUMN])
             final_data.save_to_disk(io_args.output)
             if io_args.debug:
+                UserWarning("Saving UnionFind not implemented yet. Sleeping for fairness")
+                time.sleep(2)
                 uf.dump(os.path.join(io_args.output, "uf.pkl"), id2id=id2id)
 
         with timer("Cleaning"):
