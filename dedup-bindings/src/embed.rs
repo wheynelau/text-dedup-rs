@@ -5,7 +5,7 @@ use regex::Regex;
 use sha1::{Sha1, Digest};
 use byteorder::{ByteOrder, LittleEndian};
 use ndarray::ArcArray1;
-use base64::{Engine as _, engine::{self, general_purpose}, alphabet};
+use base64::{Engine as _, engine::general_purpose};
 
 const D :u32 = 32;
 const RIEMANN_DIVISIONS: u32 = 100;
