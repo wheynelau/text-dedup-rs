@@ -62,11 +62,13 @@ impl EmbedFunc {
             hash_values: hash_ranges,
             main_col: main_col.to_string(),
             idx_col: idx_col.to_string(),
-            hash_tables: hash_tables,
-            edges: edges,
+            hash_tables,
+            edges,
         }
     }
-
+    ///
+    /// Not in use unless its for single line
+    /// 
     fn embed_func(&self, text:&str, idx: i32) -> HashMap<String, SIG>{
         let hs: Vec<String> = embed::py_embed_func(&text, self.hash_values.to_vec());
 
@@ -77,16 +79,6 @@ impl EmbedFunc {
 
     }
 
-    fn batched_embed_func(&self, text: Vec<String>, idx: Vec<i32>) -> HashMap<String, Vec<SIG>> {
-
-        let new_text : Vec<SIG> = text.par_iter()
-            .map(|s| {
-                let mapped = embed::py_embed_func(&s, self.hash_values.to_vec());
-                SIG::SIGNATURE(mapped)
-            }).collect();
-        
-        HashMap::from([(self.main_col.to_string(), new_text), (self.idx_col.to_string(), idx.into_iter().map(SIG::INDEX).collect())])
-    }
     ///
     /// Add the signature to the hash table
     /// 
@@ -103,7 +95,28 @@ impl EmbedFunc {
             }
         });
     }
-
+    ///
+    /// This function embeds the text and adds the signature to the hash table
+    ///
+    fn batch_embed_shard(&mut self, text: Vec<String>, idx: Vec<i32>) {
+        let text_idx: Vec<(Vec<String>,i32)> = text.par_iter().zip(idx.par_iter())
+            .map( |(s, &i)| {
+                let mapped = embed::py_embed_func(&s, self.hash_values.to_vec());
+                (mapped , i)
+            }).collect();
+        
+        text_idx.iter().for_each(|(sig, i)| {
+            self.batch_add(sig.clone() , *i);
+        });
+    }
+    ///
+    /// Cluster the hash tables
+    /// 
+    /// # Returns
+    /// 
+    /// A UnionFind data structure representing the clusters
+    /// 
+    /// Iterates the hash tables and clusters the signatures
     fn cluster(&mut self) -> union::UnionFind{
         let mut uf = union::UnionFind::new();
         for table in &self.hash_tables {
@@ -111,24 +124,19 @@ impl EmbedFunc {
                 if cluster.len() <= 1 {
                     continue;
                 }
-                let idx = *cluster.iter().min().expect("Cluster should not be empty");
+                let idx: i32 = *cluster.iter().min().expect("Cluster should not be empty");
                 for &x in cluster {
-                    self.edges.push((x, idx));
+                    // self.edges.push((x, idx)); // Doesn't seem necessary
                     uf.union(x as usize, idx as usize);
                 }
             }
         }
         uf
     }
-
 }
 
 #[pymodule]
 fn dedup_bindings(_py: Python, m: &PyModule) -> PyResult<()> {
-    // m.add_function(wrap_pyfunction!(shingle, m)?)?;
-    // // m.add_function(wrap_pyfunction!(shuffle, m)?)?;
-    // m.add_function(wrap_pyfunction!(jaccard, m)?)?;
-    // m.add_function(wrap_pyfunction!(one_hot, m)?)?;
     m.add_class::<EmbedFunc>()?;
     Ok(())
 }
