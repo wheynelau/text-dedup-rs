@@ -1,5 +1,6 @@
 import os
 import pickle  # nosec
+import json
 import subprocess  # nosec
 import sys
 from collections import defaultdict
@@ -13,6 +14,8 @@ from text_dedup.minhash import main as minhash_main
 from text_dedup.minhash_rust import main as minhash_rust_main
 from text_dedup.utils import (IOArgs, MetaArgs, MinHashArgs, SimHashArgs,
                               Timer, UnionFind, UniSimArgs)
+
+from dedup_rs import UnionFind as UnionFindRS
 
 NUM_PROC = os.cpu_count()
 
@@ -36,10 +39,14 @@ def _precision(row):
 
 
 def uf2results(path: str, name: str, time: float):
-    with open(path, "rb") as f:
-        uf = pickle.load(f)  # nosec
 
     id2cluster = defaultdict(set)
+    try:
+        with open(path, "rb") as f:
+            uf = pickle.load(f)  # nosec
+    except: # noqa
+        uf = UnionFindRS.load(path)
+    
     for idx, cluster in uf.parent.items():
         id2cluster[cluster].add(idx)
 
@@ -257,7 +264,7 @@ if __name__ == "__main__":
         },
         remove_columns=ds.column_names,
         with_indices=True,
-        num_proc=NUM_PROC,
+        num_proc=NUM_PROC,  
         features=Features(
             {
                 "core_id": Value("string"),
@@ -278,7 +285,7 @@ if __name__ == "__main__":
         num_proc=NUM_PROC,
         cache_dir=".cache",
         output="./temp_output_minhash",
-        debug=False,
+        debug=True,
         clean_cache=True,
     )
     meta_args = MetaArgs(column="text", batch_size=10000)
@@ -305,10 +312,14 @@ if __name__ == "__main__":
             minhash_args=minhash_args,
         )
 
-    uf2results(f"{minhash_output}/uf.pkl", "MinHash", t.elapsed_times.get("MinHash"))
-    uf2results(
-        f"{minhash_output_rust}/uf.pkl", "MinHashRust", t.elapsed_times.get("MinRust")
-    )
+    try:
+        uf2results(f"{minhash_output}/uf.pkl", "MinHash", t.elapsed_times.get("MinHash"))
+        uf2results(
+            f"{minhash_output_rust}/uf.json", "MinHashRust", t.elapsed_times.get("MinRust")
+        )
+    except FileNotFoundError:
+        print(f"Unable to find uf.pkl in {minhash_output} or {minhash_output_rust}")
+
     exact_title_results(ds=ds, name="Exact Title")
 
     print(

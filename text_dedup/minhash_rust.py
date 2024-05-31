@@ -12,7 +12,6 @@ import time
 import click
 import datasets
 import numpy as np
-from tqdm import tqdm
 
 from dedup_rs import EmbedFunc
 from text_dedup import logger
@@ -112,11 +111,7 @@ def main(
             final_data = final_data.remove_columns([CLUSTER_COLUMN, INDEX_COLUMN])
             final_data.save_to_disk(io_args.output)
             if io_args.debug:
-                UserWarning(
-                    "Saving UnionFind not implemented yet. Sleeping for fairness"
-                )
-                time.sleep(2)
-                uf.dump(os.path.join(io_args.output, "uf.pkl"), id2id=id2id)
+                uf.dump(os.path.join(io_args.output, "uf.json"))
 
         with timer("Cleaning"):
             if io_args.clean_cache:
