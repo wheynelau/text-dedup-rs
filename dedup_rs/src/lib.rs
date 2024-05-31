@@ -43,12 +43,35 @@ impl IntoPy<PyObject> for SIG {
 
 #[pymethods]
 impl EmbedFunc {
+    ///
+    /// Create a new EmbedFunc object
+    /// 
+    /// # Arguments
+    /// 
+    /// * `threshold` - The threshold for the similarity
+    /// * `num_perm` - The number of permutations
+    /// * `false_positive` - The false positive rate
+    /// * `false_negative` - The false negative rate
+    /// * `main_col` - The name of the main column
+    /// * `idx_col` - The name of the index column
+    /// 
     #[new]
     fn new(threshold:f64, num_perm:i32,false_positive:f64, false_negative:f64,
         main_col: &str, idx_col: &str, ) -> Self {
         let (b, r) = utils::optimal_param(threshold, num_perm, false_positive, false_negative);
         Self::shared_init(b, r, num_perm, main_col, idx_col)
     }
+    ///
+    /// Create a new EmbedFunc object with the known B and R values
+    /// 
+    /// # Arguments
+    /// 
+    /// * `b`
+    /// * `r` 
+    /// * `num_perm` - The number of permutations
+    /// * `main_col` - The name of the main column
+    /// * `idx_col` - The name of the index column
+    /// 
     #[classmethod]
     fn from_b_r(_cls: &Bound<'_, PyType>, b:i32, r:i32, num_perm:i32, main_col: &str, idx_col: &str) -> Self {
 
@@ -143,7 +166,7 @@ impl EmbedFunc {
 }
 
 #[pymodule]
-fn dedup_bindings(_py: Python, m: &PyModule) -> PyResult<()> {
+fn dedup_rs(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<EmbedFunc>()?;
     Ok(())
 }
