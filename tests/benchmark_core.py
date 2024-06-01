@@ -15,7 +15,7 @@ from text_dedup.minhash_rust import main as minhash_rust_main
 from text_dedup.utils import (IOArgs, MetaArgs, MinHashArgs, SimHashArgs,
                               Timer, UnionFind, UniSimArgs)
 
-from dedup_rs import UnionFind as UnionFindRS
+from text_dedup.dedup_rs import UnionFind as UnionFindRS
 
 NUM_PROC = os.cpu_count()
 
@@ -292,7 +292,7 @@ if __name__ == "__main__":
 
     with t("MinRust"):
         ctx = click.Context(minhash_rust_main)
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
+        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.45, b=50, r=4)
         io_args.output = minhash_output_rust = "./temp_output_minhash_rust"
         ctx.invoke(
             minhash_rust_main,

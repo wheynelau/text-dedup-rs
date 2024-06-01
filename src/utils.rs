@@ -47,7 +47,7 @@ pub fn optimal_param(threshold: f64,
 }
 
 mod tests {
-    use super::riemann_sum;
+    
 
     #[test]
     fn test_riemann_sum() {
