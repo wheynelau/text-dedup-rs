@@ -230,10 +230,10 @@ if __name__ == "__main__":
             },
             num_proc=NUM_PROC,
         )
-        .save_to_disk("temp_inp_ds")
+        .save_to_disk("temp_files/temp_inp_ds")
     )
 
-    os.makedirs("temp_inp_paruqet", exist_ok=True)
+    os.makedirs("temp_files/temp_inp_paruqet", exist_ok=True)
     (
         datasets.load_dataset(
             "pinecone/core-2020-05-10-deduplication",
@@ -252,10 +252,10 @@ if __name__ == "__main__":
             with_indices=True,
         )
         .to_pandas()
-        .to_parquet("temp_inp_paruqet/data.parquet")
+        .to_parquet("temp_files/temp_inp_paruqet/data.parquet")
     )
 
-    ds = datasets.load_from_disk("temp_inp_ds")
+    ds = datasets.load_from_disk("temp_files/temp_inp_ds")
     truth = ds.map(
         lambda x, idx: {
             "core_id": x["core_id"],
@@ -280,11 +280,11 @@ if __name__ == "__main__":
     }
 
     io_args = IOArgs(
-        path="./temp_inp_ds",
+        path="./temp_files/temp_inp_ds",
         local=True,
         num_proc=NUM_PROC,
         cache_dir=".cache",
-        output="./temp_output_minhash",
+        output="./temp_files/temp_output_minhash",
         debug=True,
         clean_cache=True,
     )
@@ -293,7 +293,7 @@ if __name__ == "__main__":
     with t("MinRust"):
         ctx = click.Context(minhash_rust_main)
         minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.45, b=50, r=4)
-        io_args.output = minhash_output_rust = "./temp_output_minhash_rust"
+        io_args.output = minhash_output_rust = "./temp_files/temp_output_minhash_rust"
         ctx.invoke(
             minhash_rust_main,
             io_args=io_args,
@@ -304,7 +304,7 @@ if __name__ == "__main__":
     with t("MinHash"):
         ctx = click.Context(minhash_main)
         minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
-        io_args.output = minhash_output = "./temp_output_minhash"
+        io_args.output = minhash_output = "./temp_files/temp_output_minhash"
         ctx.invoke(
             minhash_main,
             io_args=io_args,
