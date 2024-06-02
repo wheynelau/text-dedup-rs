@@ -10,6 +10,7 @@
   - [Description](#description)
   - [Learning points](#learning-points)
   - [How to run](#how-to-run)
+    - [Docker](#docker)
   - [Changes made to original code](#changes-made-to-original-code)
   - [Results](#results)
   - [Issues](#issues)
@@ -42,6 +43,14 @@ pip install .
 cd ..
 python tests/benchmark_core.py
 ```
+### Docker
+
+```bash
+docker build -t text-dedup .
+docker run text-dedup "python tests/benchmark_core.py"
+docker run text-dedup "python tests/benchmark_news.py"
+```
+
 
 ## Changes made to original code
 
