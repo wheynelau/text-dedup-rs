@@ -35,7 +35,8 @@ I have not tested on another fresh environment so expect "It works on my machine
 ```bash
 # from the original repo
 # this assumes you have python, environment management is up to you
-pip install -e . # editable mode
+curl https://sh.rustup.rs -sSf | sh # temporary till I create the whls for testing
+pip install . # editable mode
 cd dedup-rs
 pip install .
 cd ..
