@@ -31,12 +31,13 @@ I intend to write a gist for the additional issues for learning purposes.
 
 ## How to run
 
-I have not tested on another fresh environment so expect "It works on my machine" issues.
+I have not tested on another fresh environment so expect "It works on my machine" issues.  
+Additionally, I have not setup wheels so only building from source is possible.
 
 ```bash
 # from the original repo
 # this assumes you have python, environment management is up to you
-curl https://sh.rustup.rs -sSf | sh # temporary till I create the whls for testing
+curl https://sh.rustup.rs -sSf | sh 
 pip install . # editable mode
 cd dedup-rs
 pip install .
@@ -94,8 +95,8 @@ One caveat I noticed was that rust didn't produce tuples with whitespaces, for e
  (" ", "a", "b") which is what python produced. It may affect the results but I'm not sure.
 
 ## TODO
-- [ ] Write setup.py
+- [x] Write setup.py -> setup pyproject.toml for `pip install .`
 - [ ] Remove hard codes
-- [ ] End goal: Make it work with pyspark
+- [x] ~~End goal: Make it work with pyspark~~ Check out the [experimental-pyspark](https://github.com/wheynelau/text-dedup-rs/tree/experimental-pyspark) branch
 - [ ] Check for potential improvements
 - [ ] Write idiomatic rust code
