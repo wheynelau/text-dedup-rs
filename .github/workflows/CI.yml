@@ -6,10 +6,11 @@
 name: CI
 
 on:
-  # push:
-  #   branches:
-  #     - main
-  #     - master
+  push:
+    branches:
+      - main
+      - master
+      - dev
   #   tags:
   #     - '*'
   # pull_request:
