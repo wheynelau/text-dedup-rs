@@ -1,5 +1,6 @@
-use ndarray::ArcArray1;
-use pyo3::{prelude::*, types::PyType};
+use ndarray::{Array, Array1};
+use pyo3::{exceptions,prelude::*, types::{PyBytes,PyTuple, PyType}};
+use serde::{Serialize,Deserialize};
 use std::collections::{HashMap,HashSet};
 use rayon::prelude::*;
 
@@ -10,6 +11,7 @@ mod utils;
 const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
 
 #[pyclass]
+#[derive(Clone, Deserialize, Serialize)]
 struct EmbedFunc {
     hash_values: Vec<(i32,i32)>,
     main_col: String,
@@ -18,7 +20,7 @@ struct EmbedFunc {
     hash_tables: Vec<HashMap<String, HashSet<i32>>>,
     #[pyo3(get)]
     edges: Vec<(i32, i32)>,
-    permutations: (ArcArray1<u64>, ArcArray1<u64>),
+    permutations: (Array1<u64>, Array1<u64>),
 }
 
 enum SIG {
@@ -139,6 +141,13 @@ impl EmbedFunc {
             self.batch_add(sig.clone() , *i);
         });
     }
+
+    fn pyspark_hash(&mut self, text: String, idx: i32) -> Vec<(i32, String, i32)> {
+        let hs: Vec<String> = embed::py_embed_func(&text, self.permutations.clone(),self.hash_values.to_vec());
+        hs.iter().enumerate().map(|(i, hash)| {
+            (i as i32, hash.clone(), idx)
+        }).collect()
+    }
     ///
     /// Cluster the hash tables
     /// 
@@ -163,11 +172,63 @@ impl EmbedFunc {
         }
         uf
     }
+    fn __getstate__(&self, py: Python) -> PyResult<PyObject> {
+        let data = serde_json::to_string(self).map_err(|e| {
+            exceptions::PyException::new_err(format!(
+                "Error while attempting to pickle EmbedFunc: {}",
+                e
+            ))
+        })?;
+        Ok(PyBytes::new_bound(py, data.as_bytes()).to_object(py))
+    }
+    fn __setstate__(&mut self, py: Python, state: PyObject) -> PyResult<()> {
+        match state.extract::<&PyBytes>(py) {
+            Ok(s) => {
+                // Deserialize into a new instance of EmbedFunc
+                let new_self: EmbedFunc = serde_json::from_slice(s.as_bytes()).map_err(|e| {
+                    exceptions::PyException::new_err(format!(
+                        "Error while attempting to unpickle EmbedFunc: {}",
+                        e
+                    ))
+                })?;
+    
+                // Assign the new instance to self
+                *self = new_self;
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+    
+}
+#[pyfunction]
+fn pyspark_hash(text: String, idx: i32, a: Vec<u64>, b: Vec<u64>, hash_ranges: Vec<(i32, i32)>) -> Vec<(i32, String, i32)> {
+
+    let permutations = (Array1::from_vec(a), Array1::from_vec(b));
+    let hs: Vec<String> = embed::py_embed_func(&text, permutations , hash_ranges);
+    hs.iter().enumerate().map(|(i, hash)| {
+        (i as i32, hash.clone(), idx)
+    }).collect()
+}
+#[pyfunction]
+fn pyspark_edges(nodes: Vec<i32>) -> Vec<(i32,i32)> {
+    if nodes.len() < 2 {
+        Vec::new()
+    } else {
+        let min_node: i32 = *nodes.iter().min().unwrap();
+        let result: Vec<(i32, i32)> = nodes.iter()
+            .filter(|&&node| node != min_node)
+            .map(|&node| (node, min_node))
+            .collect();
+        result
+    }
 }
 
 #[pymodule]
 fn dedup_rs(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<EmbedFunc>()?;
     m.add_class::<union::UnionFind>()?;
+    m.add_function(wrap_pyfunction!(pyspark_hash, m)?)?;
+    m.add_function(wrap_pyfunction!(pyspark_edges, m)?)?;
     Ok(())
 }

@@ -11,6 +11,8 @@ import warnings
 from itertools import tee
 from logging import Logger
 from typing import List, Set, Tuple
+from text_dedup.minhash_spark import ngrams_length_check, optimal_param
+from text_dedup.dedup_rs import EmbedFunc, pyspark_hash, pyspark_edges
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
@@ -32,275 +34,6 @@ NON_ALPHA = re.compile(r"\W", re.UNICODE)
 DTYPE = np.uint32
 MAX_HASH = 4_294_967_295  # maximum 32-bit unsigned integer
 MOD_PRIME = 4_294_967_291  # maximum 32-bit prime number
-
-
-def generate_edges(nodes: List[int]) -> List[Tuple[int, int]]:
-    """
-    Generate edges from a cluster. Instead of generating N^2 edges, we only need all nodes align to a single node, since
-    we will be running connected components on the edges later.
-
-    Parameters
-    ----------
-    nodes : List[int]
-        The list of nodes in the cluster.
-
-    Returns
-    -------
-    List[Tuple[int, int]]
-        The list of edges.
-
-    Examples
-    --------
-    >>> generate_edges([1, 2, 3])
-    [(2, 1), (3, 1)]
-    """
-    if len(nodes) <= 1:
-        return []
-
-    min_node = min(nodes)
-    return [(n, min_node) for n in nodes if n != min_node]
-
-
-# region: Hashing
-def ngrams(sequence: List[str], n: int, min_length: int = 5):
-    """
-    Return the ngrams generated from a sequence of items, as an iterator.
-
-    This is a modified version of nltk.util.ngrams.
-
-    Parameters
-    ----------
-    sequence : List[Text]
-        The sequence of items.
-    n : int
-        The length of each ngram.
-    min_length : int, optional
-        The minimum length of each ngram, by default 5
-
-    Returns
-    -------
-    iterator
-        The ngrams.
-
-    Examples
-    --------
-    >>> list(ngrams(["a", "b", "c", "d"], 2, min_length=1))
-    [('a', 'b'), ('b', 'c'), ('c', 'd')]
-    >>> list(ngrams(["a", "b", "c", "d"], 2, min_length=5))
-    []
-    >>> list(ngrams(["a", "b"], 3, min_length=1))
-    [('a', 'b')]
-    """
-    if len(sequence) < min_length:
-        return []
-    if len(sequence) < n:
-        return [tuple(sequence)]
-    iterables = tee(iter(sequence), n)
-    for i, sub_iterable in enumerate(iterables):
-        for _ in range(i):
-            next(sub_iterable, None)
-    return zip(*iterables)
-
-
-def ngram_hashes(content: str, n: int, min_length: int = 5) -> Set[int]:
-    """
-    Return the ngrams in hash values. This function fuses few steps together for performance reasons.
-
-    Parameters
-    ----------
-    content : str
-        The content of the document.
-    n : int
-        The length of each ngram.
-    min_length : int, optional
-        The minimum length of each ngram, by default 5
-
-    Returns
-    -------
-    Set[int]
-        The set of ngrams in hash values.
-
-    Examples
-    --------
-    >>> sorted(list(ngrams("a b c d", 2, min_length=1)))
-    [145323813, 433422276, 459146835]
-    >>> list(ngrams("a b c d", 2, min_length=5))
-    []
-    >>> list(ngrams("a b", 3, min_length=1))
-    [433422276]
-    """
-    tokens: List[str] = NON_ALPHA.split(content.lower())
-    ng: set[bytes] = {
-        bytes(" ".join(t).lower(), "utf-8") for t in ngrams(tokens, n, min_length)
-    }
-    return {xxhash.xxh32_intdigest(n) for n in ng}
-
-
-def ngrams_length_check(content: str, n: int, min_length: int = 5) -> bool:
-    """
-    Return the ngrams in hash values. This function fuses few steps together for performance reasons.
-
-    Parameters
-    ----------
-    content : str
-        The content of the document.
-    n : int
-        The length of each ngram.
-    min_length : int, optional
-        The minimum length of each ngram, by default 5
-
-    Returns
-    -------
-        bool
-        True if at least one ngram meets the `min_length` requirement, otherwise False.
-
-    Examples
-    --------
-    >>> ngrams_length_check("a b c d", 2, min_length=1)
-    True
-    >>> ngrams_length_check("a b c d", 2, min_length=5)
-    False
-    >>> ngrams_length_check("a b", 3, min_length=1)
-    True
-    """
-    tokens: List[str] = NON_ALPHA.split(content.lower())
-    return len(tokens) >= min_length
-
-
-def generate_hash_values(
-    content: str,
-    idx: int,
-    num_perm: int,
-    ngram_size: int,
-    min_length: int,
-    hashranges: List[Tuple[int, int]],
-    permutations: Tuple[npt.NDArray[DTYPE], npt.NDArray[DTYPE]],
-) -> List[Tuple[int, bytes, int]]:
-    """
-    Generate the MinHashLSH values for a given document.
-
-    Parameters
-    ----------
-    content : str
-        The content of the document.
-    idx : int
-        The index of the document.
-    num_perm : int
-        The number of permutations.
-    ngram_size : int
-        The size of the n-grams.
-    min_length : int
-        The minimum number of tokens in a document.
-    hashranges : list
-        The ranges of offsets for each hash value.
-    permutations : Tuple[np.ndarray, np.ndarray]
-        The permutations for the hash values.
-
-    Returns
-    -------
-    List[Tuple[int, bytes, int]]
-        The list of (band_idx, hash value, idx) for the document.
-
-    Examples
-    --------
-    >>> content = "hello world"
-    >>> idx = 0
-    >>> num_perm = 250
-    >>> ngram_size = 1
-    >>> hashranges = [(i, i + 25) for i in range(0, 250, 25)]
-    >>> PERMUTATIONS = (
-    ...     RNG.randint(1, MOD_PRIME, size=(num_perm,), dtype=DTYPE),
-    ...     RNG.randint(0, MOD_PRIME, size=(num_perm,), dtype=DTYPE),
-    ... )
-    >>> res = generate_hash_values(content, idx, num_perm, ngram_size, 0, hashranges, PERMUTATIONS)
-    >>> len(res)
-    10
-    >>> sum(len(h) for _, h, _ in res) == len(res) * 25 * np.dtype(DTYPE).itemsize
-    True
-    """
-    a, b = permutations
-    hashes = np.array(list(ngram_hashes(content, ngram_size, min_length)), dtype=DTYPE)
-    p_hashes = ((np.outer(hashes, a) + b) % MOD_PRIME) & MAX_HASH
-    min_hashes = np.vstack([p_hashes, np.full(num_perm, MAX_HASH, dtype=DTYPE)]).min(
-        axis=0
-    )
-    return [
-        (band_idx, min_hashes[start:end].data.tobytes(), idx)
-        for band_idx, (start, end) in enumerate(hashranges)
-    ]
-
-
-# endregion
-
-
-# region: MinHashLSH
-def optimal_param(
-    threshold: float,
-    num_perm: int,
-    false_positive_weight: float = 0.5,
-    false_negative_weight: float = 0.5,
-):
-    """
-    Compute the optimal `MinHashLSH` parameter that minimizes the weighted sum
-    of probabilities of false positive and false negative, taken from datasketch.
-
-    Parameters
-    ----------
-    threshold : float
-        The threshold for similarity.
-    num_perm : int
-        The number of permutations.
-    false_positive_weight : float
-        The weight of false positive.
-    false_negative_weight : float
-        The weight of false negative.
-
-    Returns
-    -------
-    Tuple[int, int]
-        The optimal `b` and `r` parameters.
-        The number of bands, and the number of rows per band respectively.
-
-    Examples
-    --------
-    >>> optimal_param(0.7, 256)
-    (25, 10)
-    """
-
-    def false_positive_area(threshold: float, b: int, r: int):
-        """Source: `datasketch.lsh`"""
-
-        def area(s):
-            return 1 - (1 - s ** float(r)) ** float(b)
-
-        a, _ = integrate(area, 0.0, threshold)
-        return a
-
-    def false_negative_area(threshold: float, b: int, r: int):
-        """Source: `datasketch.lsh`"""
-
-        def area(s):
-            return 1 - (1 - (1 - s ** float(r)) ** float(b))
-
-        a, _ = integrate(area, threshold, 1.0)
-        return a
-
-    min_error = float("inf")
-    opt = (0, 0)
-    for b in range(1, num_perm + 1):
-        max_r = int(num_perm / b)
-        for r in range(1, max_r + 1):
-            fp = false_positive_area(threshold, b, r)
-            fn = false_negative_area(threshold, b, r)
-            error = fp * false_positive_weight + fn * false_negative_weight
-            if error < min_error:
-                min_error = error
-                opt = (b, r)
-    return opt
-
-
-# endregion
-
 
 # region: IO
 def partitioned_save(df: DataFrame, chunk_size: int, max_partitions: int, output: str):
@@ -390,7 +123,7 @@ if __name__ == "__main__":  # pragma: no cover
     )
     args = parser.parse_args()
     # endregion
-
+    
     # region: Spark Configuration
     conf = (
         SparkConf()
@@ -412,6 +145,10 @@ if __name__ == "__main__":  # pragma: no cover
     FINAL_SIZE: int = 0
     MAX_WRITE_CHUNK_SIZE: int = 200_000
     MAX_WRITE_PARTITIONS: int = 2048
+    # endregion
+
+    start_time: float = time.time()
+    index_column = args.index or "__id__"
 
     B, R = args.b, args.r
     if B is None or R is None:
@@ -422,11 +159,11 @@ if __name__ == "__main__":  # pragma: no cover
         RNG.randint(1, MOD_PRIME, size=(args.num_perm,), dtype=DTYPE),
         RNG.randint(0, MOD_PRIME, size=(args.num_perm,), dtype=DTYPE),
     )
-    # endregion
 
-    start_time: float = time.time()
-    index_column = args.index or "__id__"
+    a,b = PERMUTATIONS
 
+    a = a.tolist()
+    b = b.tolist()
     # region: Data Loading
     # persist justification: this data will be needed when removing duplicates
     df: DataFrame = (
@@ -443,7 +180,6 @@ if __name__ == "__main__":  # pragma: no cover
     # persist trigger
     DATA_SIZE: int = df.count()
     log.debug("-" * 120)
-    log.debug(f"Using {B=}, {R=}")
     log.debug(f"Loaded documents: {DATA_SIZE}")
     log.debug(f"{args.input=}")
     log.debug(f"{args.output=}")
@@ -465,17 +201,18 @@ if __name__ == "__main__":  # pragma: no cover
     edges: pyspark.RDD = (
         df.select(index_column, args.column)
         .rdd.flatMap(
-            lambda x: generate_hash_values(
-                content=x[1],  # args.column
-                idx=x[0],  # __id__
-                num_perm=args.num_perm,
-                ngram_size=args.ngram_size,
-                min_length=args.min_length,
-                hashranges=HASH_RANGES,
-                permutations=PERMUTATIONS,
+            lambda x: pyspark_hash(
+                x[1],  # args.column
+                x[0],  # __id__
+                a,
+                b,
+                HASH_RANGES
             )
         )  # (band_idx, band hash value, idx)
-         lambda x: generate_edges([ele[2] for ele in x[1]]))
+        .groupBy(
+            lambda x: (x[0], x[1])
+        )  # group by (band_idx, band hash value), potential bottleneck
+        .flatMap(lambda x: pyspark_edges([ele[2] for ele in x[1]]))
         .distinct()
     ).persist(pyspark.StorageLevel.DISK_ONLY)
     # endregion
@@ -499,6 +236,7 @@ if __name__ == "__main__":  # pragma: no cover
     log.debug("-" * 120)
 
     sys.exit(0)
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         edges_df: DataFrame = (

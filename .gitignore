@@ -161,6 +161,4 @@ output
 *code-workspace
 .ruff_cache
 
-*.crc
-*.pkl
-*.parquet
+temp_files

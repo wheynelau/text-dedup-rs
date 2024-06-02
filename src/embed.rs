@@ -4,7 +4,7 @@ use rand::{distributions::Uniform, Rng, SeedableRng};
 use regex::Regex;
 use sha1::{Sha1, Digest};
 use byteorder::{ByteOrder, LittleEndian};
-use ndarray::ArcArray1;
+use ndarray::Array1;
 use base64::{Engine as _, engine::general_purpose};
 
 use crate::utils;
@@ -76,18 +76,18 @@ pub fn hash_tokens(tokens: HashSet<Vec<u8>>) -> Vec<u64> {
         .collect()
 }
 
-pub fn generate_permutations(module_prime: usize, num_perm:i32) -> (ArcArray1<u64>, ArcArray1<u64>) {
+pub fn generate_permutations(module_prime: usize, num_perm:i32) -> (Array1<u64>, Array1<u64>) {
     let mut rng: rand::rngs::StdRng = SeedableRng::from_seed([42; 32]);
     let dist_a = Uniform::new(1, module_prime); // Range is [1, modulo_prime)
     let dist_b = Uniform::new(0, module_prime); // Range is [0, modulo_prime)
 
-    let a: ArcArray1<u64> = (0..num_perm) // Assuming you want NUM_PERM elements as per previous context
+    let a: Array1<u64> = (0..num_perm) // Assuming you want NUM_PERM elements as per previous context
         .map(|_| rng.sample(&dist_a) as u64)
         .collect::<Vec<_>>()
         .into_iter()
         .collect();
 
-    let b: ArcArray1<u64> = (0..num_perm) // Assuming you want NUM_PERM elements as per previous context
+    let b: Array1<u64> = (0..num_perm) // Assuming you want NUM_PERM elements as per previous context
         .map(|_| rng.sample(&dist_b) as u64)
         .collect::<Vec<_>>()
         .into_iter()
@@ -97,11 +97,11 @@ pub fn generate_permutations(module_prime: usize, num_perm:i32) -> (ArcArray1<u6
 }
 
 
-pub fn py_embed_func(text: &str, permutations: (ArcArray1<u64>, ArcArray1<u64>), hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
+pub fn py_embed_func(text: &str, permutations: (Array1<u64>, Array1<u64>), hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
 
     let (a, b) = permutations;
 
-    let tokens = tokenize(&text, N, MIN_LENGTH);
+    let tokens = tokenize(text, N, MIN_LENGTH);
 
     let hashes: Vec<u64> = hash_tokens(tokens);
 

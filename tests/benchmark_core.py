@@ -19,7 +19,7 @@ from text_dedup.dedup_rs import UnionFind as UnionFindRS
 
 NUM_PROC = os.cpu_count()
 
-
+TMP_DIR = "temp_files"
 def _recall(row):
     labelled_dups = set(row["duplicates"])
     LEN_LABELLED_DUPLICATES = len(labelled_dups)
@@ -143,16 +143,15 @@ def inverse(label: str) -> str:
     return {"TP": "TN", "FN": "FP", "FP": "FN", "TN": "TP"}[label]
 
 
-# Commented out for testing purposes
-# def spark_assignment_to_uf(path: str):
-#     df = pd.read_parquet(path)
-#     uf = UnionFind()
-#     for _, row in df.iterrows():
-#         uf.union(row["id"], row["component"])
+def spark_assignment_to_uf(path: str):
+    df = pd.read_parquet(path)
+    uf = UnionFind()
+    for _, row in df.iterrows():
+        uf.union(row["id"], row["component"])
 
-#     with open(f"{spark_output}/uf.pkl", "wb") as f:
-#         pickle.dump(uf, f)
-#     return uf
+    with open(f"{spark_output}/uf.pkl", "wb") as f:
+        pickle.dump(uf, f)
+    return uf
 
 
 def exact_title_results(ds, name: str):
@@ -230,10 +229,10 @@ if __name__ == "__main__":
             },
             num_proc=NUM_PROC,
         )
-        .save_to_disk("temp_files/temp_inp_ds")
+        .save_to_disk(f"{TMP_DIR}/temp_inp_ds")
     )
 
-    os.makedirs("temp_files/temp_inp_paruqet", exist_ok=True)
+    os.makedirs(f"{TMP_DIR}/temp_inp_paruqet", exist_ok=True)
     (
         datasets.load_dataset(
             "pinecone/core-2020-05-10-deduplication",
@@ -252,10 +251,10 @@ if __name__ == "__main__":
             with_indices=True,
         )
         .to_pandas()
-        .to_parquet("temp_files/temp_inp_paruqet/data.parquet")
+        .to_parquet(f"{TMP_DIR}/temp_inp_paruqet/data.parquet")
     )
 
-    ds = datasets.load_from_disk("temp_files/temp_inp_ds")
+    ds = datasets.load_from_disk(f"{TMP_DIR}/temp_inp_ds")
     truth = ds.map(
         lambda x, idx: {
             "core_id": x["core_id"],
@@ -280,11 +279,11 @@ if __name__ == "__main__":
     }
 
     io_args = IOArgs(
-        path="./temp_files/temp_inp_ds",
+        path=f"{TMP_DIR}/temp_inp_ds",
         local=True,
         num_proc=NUM_PROC,
         cache_dir=".cache",
-        output="./temp_files/temp_output_minhash",
+        output=f"{TMP_DIR}/temp_output_minhash",
         debug=True,
         clean_cache=True,
     )
@@ -293,7 +292,7 @@ if __name__ == "__main__":
     with t("MinRust"):
         ctx = click.Context(minhash_rust_main)
         minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.45, b=50, r=4)
-        io_args.output = minhash_output_rust = "./temp_files/temp_output_minhash_rust"
+        io_args.output = minhash_output_rust = f"{TMP_DIR}/temp_output_minhash_rust"
         ctx.invoke(
             minhash_rust_main,
             io_args=io_args,
@@ -304,22 +303,45 @@ if __name__ == "__main__":
     with t("MinHash"):
         ctx = click.Context(minhash_main)
         minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
-        io_args.output = minhash_output = "./temp_files/temp_output_minhash"
+        io_args.output = minhash_output = f"{TMP_DIR}/temp_output_minhash"
         ctx.invoke(
             minhash_main,
             io_args=io_args,
             meta_args=meta_args,
             minhash_args=minhash_args,
         )
+    with t("MinHash Spark"):
+        spark_output = f"{TMP_DIR}/temp_output_spark"
+        spark_args = f"""
+        spark-submit --executor-memory 86g
+            --driver-memory 4g
+            --executor-cores {NUM_PROC}
+            --num-executors {NUM_PROC}
+            --packages graphframes:graphframes:0.8.2-spark3.2-s_2.12
+            --conf spark.executor.extraJavaOptions=-Dlog4j.configuration=./log4j.properties
+            --conf spark.driver.extraJavaOptions=-Dlog4j.configuration=./log4j.properties
+            text_dedup/minhash_spark.py
+            --input {TMP_DIR}/temp_inp_paruqet
+            --output {spark_output}
+            --column text
+            --index id
+            --threshold 0.5
+            --num_perm 200
+            --b 50
+            --r 4
+            --ngram 2
+            --debug
+        """.split("\n")
+        subprocess.run(
+            [part.strip() for line in spark_args for part in line.strip().split(" ") if part.strip()],
+        )  # nosec
+        spark_assignment_to_uf(f"{spark_output}-assignment/assignment.parquet")
 
-    try:
-        uf2results(f"{minhash_output}/uf.pkl", "MinHash", t.elapsed_times.get("MinHash"))
-        uf2results(
-            f"{minhash_output_rust}/uf.json", "MinHashRust", t.elapsed_times.get("MinRust")
-        )
-    except FileNotFoundError:
-        print(f"Unable to find uf.pkl in {minhash_output} or {minhash_output_rust}")
-
+    uf2results(f"{minhash_output}/uf.pkl", "MinHash", t.elapsed_times.get("MinHash"))
+    uf2results(
+        f"{minhash_output_rust}/uf.json", "MinHashRust", t.elapsed_times.get("MinRust")
+    )
+    uf2results(f"{spark_output}/uf.pkl", "MinHash Spark", t.elapsed_times.get("MinHash Spark"))
     exact_title_results(ds=ds, name="Exact Title")
 
     print(
