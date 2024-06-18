@@ -116,6 +116,7 @@ fn main() {
     });
     
     let uf: union::UnionFind = cluster(hash_tables);
+    File::create(&args.uf_output).unwrap();
     uf.dump(&args.uf_output).unwrap();
 
     let cluster_column: Vec<i32> = {
