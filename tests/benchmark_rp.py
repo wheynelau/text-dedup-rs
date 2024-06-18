@@ -18,13 +18,13 @@ if __name__ == "__main__":
     t = Timer()
 
     table = []
-
-    warnings.warn("This benchmark has no validation, and is purely for memory and speed benchmarking.")
-    ds = (
-        datasets.load_dataset(
+    try:
+        ds = datasets.load_from_disk("temp_files/temp_inp_ds")
+    except:
+        ds = (
+            datasets.load_dataset(
             DATASET,
             split="train",
-            cache_dir="./cache",
             num_proc=NUM_PROC,
         )
         .map(
@@ -33,19 +33,18 @@ if __name__ == "__main__":
             },
             num_proc=NUM_PROC,
             with_indices=True,
+            )
+        )   
+
+        ds.save_to_disk("temp_files/temp_inp_ds")
+
+        os.makedirs("temp_files/temp_inp_paruqet", exist_ok=True)
+        (
+            ds
+            .to_pandas()
+            .to_parquet("temp_files/temp_inp_paruqet/data.parquet")
         )
-    )
-
-    ds.save_to_disk("temp_files/temp_inp_ds")
-
-    os.makedirs("temp_files/temp_inp_paruqet", exist_ok=True)
-    (
-        ds
-        .to_pandas()
-        .to_parquet("temp_files/temp_inp_paruqet/data.parquet")
-    )
-
-    ds = datasets.load_from_disk("temp_files/temp_inp_ds")
+    warnings.warn("This benchmark has no validation, and is purely for memory and speed benchmarking.")
 
     io_args = IOArgs(
         path="./temp_files/temp_inp_ds",
