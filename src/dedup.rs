@@ -164,5 +164,7 @@ fn main() {
     let data = json!({
         "len": final_vec.len(),
     });
-    println!("{}", data.to_string());
+    // save data
+    let file = File::create("rs_output.json").unwrap();
+    serde_json::to_writer_pretty(&file, &data).unwrap();
 }

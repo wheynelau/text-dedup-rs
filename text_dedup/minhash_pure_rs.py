@@ -60,7 +60,8 @@ def main(
             )
             result = subprocess.run(command, capture_output=True, text=True, shell=True)
             if result.returncode == 0:
-                data = json.loads(result.stdout)
+                with open("rs_output.json", "r") as f:
+                    data = json.load(f)
                 print("Data received from Rust:", data)
 
     PAD = 32
