@@ -33,10 +33,14 @@ def main(
     minhash_args: MinHashArgs,
 ):
 
-    build_command = "cargo build --release"
-
-    subprocess.run(build_command, shell=True, check=True, capture_output=True)
     timer = Timer()
+    binary_path = "target/release/dedup"
+    if not os.path.exists(binary_path):
+        command = "cargo build --release"
+        result = subprocess.run(command, capture_output=True, text=True, shell=True)
+        if result.returncode != 0:
+            print(result.stderr)
+            return
     with timer("Total"):
         with timer("Loading"):
             ds, id2id = load_hf_dataset(io_args=io_args, meta_args=meta_args)
@@ -47,7 +51,9 @@ def main(
             )
         LEN_DATASET = len(ds)
         with timer("Embed"):
-            command = ("./target/release/dedup "
+            # check if exists
+            
+            command = (f"{binary_path} "
                     "--b {} --r {} --num-perm {} --uf-output {}".format(
                 minhash_args.b, minhash_args.r, minhash_args.num_perm, os.path.join(io_args.output, "uf.json")
             )
