@@ -166,3 +166,4 @@ output
 *.parquet
 target/
 temp_files/
+*.ipynb
