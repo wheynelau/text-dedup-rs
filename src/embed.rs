@@ -171,12 +171,9 @@ mod tests {
 
     #[test]
     fn test_embed_fn() {
-        let threshold = 0.5;
         let num_perm = 200;
-        let false_positive_weight = 0.5;
-        let false_negative_weight = 0.5;
 
-        let (b, r) = utils::optimal_param(threshold, num_perm, false_positive_weight, false_negative_weight);
+        let (b, r) = (50, 4);
         let permutations = generate_permutations(MODULE_PRIME as usize, num_perm);
         let hash_ranges: Vec<(i32, i32)> = (0..b)
                         .map(|i| (i * r, (i + 1) * r))
