@@ -7,8 +7,6 @@ use byteorder::{ByteOrder, LittleEndian};
 use ndarray::ArcArray1;
 use base64::{Engine as _, engine::general_purpose};
 
-use crate::utils;
-
 /// TODO: Remove hardcodes
 const D :u32 = 32;
 const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
@@ -156,7 +154,7 @@ fn main() {
 
     // These functions are fixed for all iterations
     let num_perm = 200;
-    let (b, r) = utils::optimal_param(0.5, num_perm, 0.5, 0.5);
+    let (b, r) = (33,6);
     let permutations = generate_permutations(MODULE_PRIME as usize, num_perm);
     let hash_ranges: Vec<(i32,i32)> = (0..b)
                     .map(|i| (i*r, (i+1)*r))
