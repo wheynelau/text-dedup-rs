@@ -16,6 +16,11 @@ crate-type = ["cdylib"]
 name = "embed"
 path = "src/embed.rs"
 
+[[bin]]
+name = "dedup"
+path = "src/dedup.rs"
+
+
 [dependencies]
 pyo3 = "0.21.2"
 rand = { version = "0.8.4", features = ["small_rng"] }
@@ -29,3 +34,6 @@ lazy_static = "1.4.0"
 base64 = "0.22.1"
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.117"
+arrow = "52.0.0"
+parquet = { version = "52.0.0" }
+clap = { version = "4.5.7", features = ["derive"] }
