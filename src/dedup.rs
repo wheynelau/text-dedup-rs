@@ -93,6 +93,7 @@ fn main() {
     let file = File::open(path).unwrap();
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
     let reader = builder.with_row_groups(vec![0])
+                                            .with_batch_size(10000)
                                             .build()
                                             .unwrap();
     let mut signatures: Vec<String> = Vec::with_capacity(1000000);
