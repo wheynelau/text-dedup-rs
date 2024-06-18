@@ -12,6 +12,7 @@ from datasets import Features, Sequence, Value
 
 from text_dedup.minhash import main as minhash_main
 from text_dedup.minhash_rust import main as minhash_rust_main
+from text_dedup.minhash_pure_rs import main as minhash_pure_rs_main
 from text_dedup.utils import (IOArgs, MetaArgs, MinHashArgs, SimHashArgs,
                               Timer, UnionFind, UniSimArgs)
 
@@ -290,6 +291,17 @@ if __name__ == "__main__":
     )
     meta_args = MetaArgs(column="text", batch_size=10000)
 
+    with t("MinHash Pure RS"):
+        ctx = click.Context(minhash_pure_rs_main)
+        io_args.output = minhash_output_rs = "./temp_files/temp_output_minhash_rs"
+        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
+        ctx.invoke(
+            minhash_pure_rs_main,
+            io_args=io_args,
+            meta_args=meta_args,
+            minhash_args=minhash_args,
+        )
+
     with t("MinRust"):
         ctx = click.Context(minhash_rust_main)
         minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.45, b=50, r=4)
@@ -316,6 +328,9 @@ if __name__ == "__main__":
         uf2results(f"{minhash_output}/uf.pkl", "MinHash", t.elapsed_times.get("MinHash"))
         uf2results(
             f"{minhash_output_rust}/uf.json", "MinHashRust", t.elapsed_times.get("MinRust")
+        )
+        uf2results(
+            f"{minhash_output_rs}/uf.json", "MinHashPureRS", t.elapsed_times.get("MinHash Pure RS")
         )
     except FileNotFoundError:
         print(f"Unable to find uf.pkl in {minhash_output} or {minhash_output_rust}")
