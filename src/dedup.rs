@@ -1,4 +1,4 @@
-use arrow::array::{Int64Array, RecordBatch, StringArray};
+use arrow::{array::{Int64Array, RecordBatch, StringArray}, ipc::writer::StreamWriter};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use rayon::prelude::*;
 use serde_json::json;
@@ -89,11 +89,12 @@ fn main() {
     let permutations = embed::generate_permutations(MODULE_PRIME as usize, args.num_perm);
 
     // Setup conditions
+    let start_time = std::time::Instant::now();
     let path = "temp_files/temp_inp_paruqet/data.parquet";
     let file = File::open(path).unwrap();
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
     let reader = builder.with_row_groups(vec![0])
-                                            .with_batch_size(10000)
+                                            .with_batch_size(100000)
                                             .build()
                                             .unwrap();
     let mut signatures: Vec<String> = Vec::with_capacity(1000000);
@@ -107,6 +108,11 @@ fn main() {
     }));
     }
 
+    let elapsed_time = start_time.elapsed();
+    println!("Time to read parquet file: {:?}", elapsed_time);
+
+    let start_time = std::time::Instant::now();
+
     let text_idx:Vec<(Vec<String>,i32)> = signatures.par_iter().zip(indices.par_iter())
         .map(|(text, idx)| {
             let hs: Vec<String> = embed::py_embed_func(&text, permutations.clone(), hash_ranges.clone());
@@ -115,6 +121,10 @@ fn main() {
     text_idx.iter().for_each(|(sig, i)| {
         batch_add(sig.clone(), *i, &mut hash_tables);
     });
+
+    println!("Time to hash: {:?}", start_time.elapsed());
+
+    let start_time = std::time::Instant::now();
     
     let uf: union::UnionFind = cluster(hash_tables);
     let uf_path = Path::new(&args.uf_output);
@@ -124,8 +134,12 @@ fn main() {
     } else {
         panic!("The provided path does not have a parent directory. This should not happen");
     }
+    println!("Time to cluster: {:?}", start_time.elapsed());
+
     uf.dump(&args.uf_output).unwrap();
 
+
+    let start_time = std::time::Instant::now();
     let cluster_column: Vec<i32> = {
         let uf = Mutex::new(uf);
 
@@ -144,6 +158,8 @@ fn main() {
                                         .filter(|((cluster, idx), _text)| cluster == idx)
                                         .map(|((_, idx), text)| (text.clone(), *idx))
         .collect();
+
+    println!("Time to filter: {:?}", start_time.elapsed());
 
     let data = json!({
         "len": final_vec.len(),

@@ -19,7 +19,10 @@ if __name__ == "__main__":
 
     table = []
     try:
+        # first check if dataset is already loaded
         ds = datasets.load_from_disk("temp_files/temp_inp_ds")
+        if not os.path.exists("temp_files/temp_inp_paruqet/data.parquet"):
+            raise FileNotFoundError
     except:
         ds = (
             datasets.load_dataset(
