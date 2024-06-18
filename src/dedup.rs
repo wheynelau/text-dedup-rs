@@ -2,7 +2,7 @@ use arrow::array::{Int64Array, RecordBatch, StringArray};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use rayon::prelude::*;
 use serde_json::json;
-use std::{collections::{HashMap, HashSet}, fs::File, sync::Mutex};
+use std::{collections::{HashMap, HashSet}, fs::File, path::Path, sync::Mutex};
 use clap::Parser;
 
 mod embed;
@@ -116,7 +116,13 @@ fn main() {
     });
     
     let uf: union::UnionFind = cluster(hash_tables);
-    File::create(&args.uf_output).unwrap();
+    let uf_path = Path::new(&args.uf_output);
+    // create directory if it doesn't exist
+    if let Some(parent) = uf_path.parent() {
+        std::fs::create_dir_all(parent).expect("Failed to create directories");
+    } else {
+        panic!("The provided path does not have a parent directory. This should not happen");
+    }
     uf.dump(&args.uf_output).unwrap();
 
     let cluster_column: Vec<i32> = {
