@@ -33,9 +33,9 @@ def main(
     minhash_args: MinHashArgs,
 ):
 
-    if minhash_args.b is not None and minhash_args.r is not None:
-        B, R = minhash_args.b, minhash_args.r
+    build_command = "cargo build --release"
 
+    subprocess.run(build_command, shell=True, check=True, capture_output=True)
     timer = Timer()
     with timer("Total"):
         with timer("Loading"):
