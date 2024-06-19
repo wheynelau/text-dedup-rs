@@ -9,6 +9,7 @@ from sklearn.metrics import adjusted_rand_score
 
 from text_dedup.minhash import main as minhash_main
 from text_dedup.minhash_rust import main as minhash_rust_main
+from text_dedup.minhash_pure_rs import main as minhash_pure_rs_main
 from text_dedup.utils import (IOArgs, MetaArgs, MinHashArgs, SimHashArgs,
                               UniSimArgs)
 from text_dedup.utils.preprocess import news_copy_preprocessing
@@ -73,11 +74,23 @@ if __name__ == "__main__":
         clean_cache=True,
     )
     meta_args = MetaArgs(column="text", batch_size=10000, idx_column="idx")
+    minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.45, b=50, r=4)
+    with t("MinHash Pure RS"):
+        ctx = click.Context(minhash_pure_rs_main)
+        io_args.output = minhash_output_rs = "./temp_files/temp_output_minhash_rs"
+        minhash_args = minhash_args
+        ctx.invoke(
+            minhash_pure_rs_main,
+            io_args=io_args,
+            meta_args=meta_args,
+            minhash_args=minhash_args,
+            parquet_path = os.path.join(output_path_spark,"data.parquet")
+        )
 
     # TODO: hyperparameter tuning
     with t("MinHash"):
         ctx = click.Context(minhash_main)
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.45, b=50, r=4)
+        minhash_args = minhash_args
         io_args.output = minhash_output = "./temp_files/news_output_minhash"
         ctx.invoke(
             minhash_main,
@@ -88,7 +101,7 @@ if __name__ == "__main__":
 
     with t("MinRust"):
         ctx = click.Context(minhash_rust_main)
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.45, b=50, r=4)
+        minhash_args = minhash_args
         io_args.output = minhash_output_rust = "./temp_files/temp_output_minhash_rust"
         ctx.invoke(
             minhash_rust_main,
@@ -96,6 +109,8 @@ if __name__ == "__main__":
             meta_args=meta_args,
             minhash_args=minhash_args,
         )
+    
+    
 
     # with t("MinHash Spark"):
     #     spark_output = "./temp_output_spark"
@@ -160,3 +175,4 @@ if __name__ == "__main__":
 
     print(f"MinHash ARI: {uf2results(labels, f'{minhash_output}/uf.pkl')}")
     print(f"MinRust ARI: {uf2results(labels, f'{minhash_output_rust}/uf.json')}")
+    print(f"MinHash Pure RS ARI: {uf2results(labels, f'{minhash_output_rs}/uf.json')}")
