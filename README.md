@@ -61,33 +61,7 @@ docker run text-dedup "python tests/benchmark_news.py"
 
 ## Results
 
-Only benchmark_core was tested.  
-
-| Algorithm   |   Precision (Duplicates) |   Recall (Duplicates) |   Precision (Non Duplicates) |   Recall (Non Duplicates) |   Macro F1 score |   Accuracy | Time   |
-|:------------|-------------------------:|----------------------:|-----------------------------:|--------------------------:|-----------------:|-----------:|:-------|
-| MinHash     |                   0.9594 |                0.9445 |                       0.9474 |                    0.9616 |           0.9534 |     0.924  | 22.82s |
-| MinHashRust |                   0.9572 |                0.9426 |                       0.946  |                    0.9598 |           0.9516 |     0.9284 | 13.38s |
-| Exact Title |                   0.8302 |                0.5521 |                       0.7098 |                    0.9065 |           0.77   |     0.7456 | -      |
-
-rust:  
- INFO     Fused embedding, sharding       : 5.08s timer.py:65  
- INFO     Clustering                      : 0.40s timer.py:65  
- INFO     Filtering                       : 2.94s timer.py:65  
- INFO     Saving                          : 1.37s timer.py:65  
- INFO     Cleaning                        : 0.02s timer.py:65  
- INFO     Total                           : 12.15s timer.py:65  
- INFO     Before                          : 100000 minhash_rust.py:123  
- INFO     After                           : 72495   
-python:  
- INFO     MinHashing                      : 6.60s timer.py:65  
- INFO     Sharding                        : 8.05s timer.py:65  
- INFO     Clustering                      : 1.20s timer.py:65  
- INFO     Filtering                       : 2.64s timer.py:65  
- INFO     Saving                          : 0.75s timer.py:65  
- INFO     Cleaning                        : 0.03s timer.py:65  
- INFO     Total                           : 21.41s timer.py:65  
- INFO     Before                          : 100000 minhash.py:306  
- INFO     After                           : 72208    
+Benchmark results are in [BENCHMARKS](docs/BENCHMARKS.md)
 
 ## Issues
 
