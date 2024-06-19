@@ -3,6 +3,7 @@ import os
 import click
 import datasets
 
+from text_dedup import logger
 from text_dedup.minhash import main as minhash_main
 from text_dedup.minhash_rust import main as minhash_rust_main
 from text_dedup.minhash_pure_rs import main as minhash_pure_rs_main
@@ -18,7 +19,7 @@ if __name__ == "__main__":
     t = Timer()
 
     if not os.environ.get('HF_DATASETS_CACHE'):
-        print("`HF_DATASETS_CACHE` not set, default location is `$HOME/.cache/huggingface/datasets`")
+        logger.info("`HF_DATASETS_CACHE` not set, default location is `$HOME/.cache/huggingface/datasets`")
 
     table = []
     ds = ( 
@@ -35,16 +36,17 @@ if __name__ == "__main__":
             with_indices=True,
             )
         )   
-
+    logger.info("Saving dataset to disk")
     ds.save_to_disk("temp_files/temp_inp_ds")
 
+    logger.info("Saving dataset to parquet")
     os.makedirs("temp_files/temp_inp_paruqet", exist_ok=True)
     (
         ds
         .to_pandas()
         .to_parquet(PARQUET_PATH)
     )
-    warnings.warn("This benchmark has no validation, and is purely for memory and speed benchmarking.")
+    logger.warning("This benchmark has no validation, and is purely for memory and speed benchmarking.")
 
     io_args = IOArgs(
         path="./temp_files/temp_inp_ds",
