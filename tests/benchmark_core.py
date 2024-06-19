@@ -103,7 +103,7 @@ def uf2results(path: str, name: str, time: float):
             f"{recalls['Class']:.4f}",
             f"{precisions['Class_']:.4f}",
             f"{recalls['Class_']:.4f}",
-            f"{(precisions['Class'] + precisions['Class_']) / 2:.4f}",
+            f"{(f1s['Class'] + f1s['Class_']) / 2:.4f}",
             f"{df['Correct'].mean():.4f}",
             f"{time:.2f}s",
         ]
@@ -303,7 +303,7 @@ if __name__ == "__main__":
         )
     with t("MinRust"):
         ctx = click.Context(minhash_rust_main)
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.45, b=50, r=4)
+        minhash_args = MinHashArgs(num_perm=250, ngram=2, threshold=0.5, b=60, r=4)
         io_args.output = minhash_output_rust = "./temp_files/temp_output_minhash_rust"
         ctx.invoke(
             minhash_rust_main,
@@ -315,7 +315,7 @@ if __name__ == "__main__":
     with t("MinHash Pure RS"):
         ctx = click.Context(minhash_pure_rs_main)
         io_args.output = minhash_output_rs = "./temp_files/temp_output_minhash_rs"
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
+        minhash_args = MinHashArgs(num_perm=250, ngram=2, threshold=0.5, b=70, r=4)
         ctx.invoke(
             minhash_pure_rs_main,
             io_args=io_args,
@@ -323,7 +323,6 @@ if __name__ == "__main__":
             minhash_args=minhash_args,
             parquet_path="temp_files/temp_inp_paruqet/data.parquet"
         )
-    
 
     try:
         uf2results(f"{minhash_output}/uf.pkl", "MinHash", t.elapsed_times.get("MinHash"))
