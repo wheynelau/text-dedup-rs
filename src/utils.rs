@@ -45,7 +45,7 @@ pub fn optimal_param(threshold: f64,
     }
     opt
 }
-
+#[cfg(test)]
 mod tests {
     
     use super::*;

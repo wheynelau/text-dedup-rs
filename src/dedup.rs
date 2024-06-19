@@ -1,4 +1,4 @@
-use arrow::{array::{Int64Array, RecordBatch, StringArray}, ipc::writer::StreamWriter};
+use arrow::{array::{Int64Array, RecordBatch, StringArray}};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use rayon::prelude::*;
 use serde_json::json;
@@ -25,6 +25,9 @@ struct Args {
 
     #[arg(short, long, default_value="text")]
     main_col: String,
+
+    #[arg(short, long)]
+    parquet_path: String,
 
     #[arg(short, long, default_value="id")]
     idx_col: String,
@@ -90,7 +93,11 @@ fn main() {
 
     // Setup conditions
     let start_time = std::time::Instant::now();
-    let path = "temp_files/temp_inp_paruqet/data.parquet";
+    let path = Path::new(&args.parquet_path);
+    // check if file exists
+    if !path.exists() {
+        panic!("File does not exist");
+    }
     let file = File::open(path).unwrap();
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
     let reader = builder.with_row_groups(vec![0])
@@ -167,4 +174,5 @@ fn main() {
     // save data
     let file = File::create("rs_output.json").unwrap();
     serde_json::to_writer_pretty(&file, &data).unwrap();
+    print!("{}", &data.to_string());
 }
