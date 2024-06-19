@@ -71,7 +71,7 @@ def main(
                     minhash_args.num_perm,
                     parquet_path,
                     meta_args.column,
-                    meta_args.idx_column,
+                    meta_args.idx_column if meta_args.idx_column else "id",
                     os.path.join(io_args.output, "uf.json"),
                 )
             )
