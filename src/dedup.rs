@@ -83,11 +83,23 @@ fn cluster(hash_tables: Vec<HashMap<String, HashSet<i32>>>)
 fn main() {
 
     let args = Args::parse();
-    let hash_ranges: Vec<(i32, i32)> = (0..args.b)
+    
+    // Check if B is too high
+    let b: i32 = {
+        let max_b = args.num_perm / args.r;
+        if args.b > max_b {
+            println!("Warning: Provided B value is too high. Adjusting B from {} to {}", args.b, max_b);
+            max_b
+        } else {
+            args.b
+        }
+    };
+    
+    let hash_ranges: Vec<(i32, i32)> = (0..b)
                         .map(|i| (i * args.r, (i + 1) * args.r))
                         .collect();
 
-    let mut hash_tables: Vec<HashMap<String, HashSet<i32>>> = vec![HashMap::new(); args.b as usize];
+    let mut hash_tables: Vec<HashMap<String, HashSet<i32>>> = vec![HashMap::new(); b as usize];
 
     let permutations = embed::generate_permutations(MODULE_PRIME as usize, args.num_perm);
 

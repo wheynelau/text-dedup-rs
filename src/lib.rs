@@ -80,6 +80,16 @@ impl EmbedFunc {
     #[staticmethod]
     fn shared_init(b:i32, r:i32, num_perm:i32, main_col: &str, idx_col: &str) -> Self {
 
+        let b = {
+            let max_b = num_perm / r;
+            if b > max_b {
+                println!("Number of permutations: {}, r: {}", num_perm, r);
+                println!("Warning: Provided B value is too high. Adjusting B from {} to {}", b, max_b);
+                max_b
+            } else {
+                b
+            }
+        };
         let hash_ranges: Vec<(i32, i32)> = (0..b)
                         .map(|i| (i * r, (i + 1) * r))
                         .collect();
