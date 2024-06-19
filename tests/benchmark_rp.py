@@ -13,18 +13,15 @@ import warnings
 
 NUM_PROC = os.cpu_count()
 DATASET = "togethercomputer/RedPajama-Data-1T-Sample"
-
+PARQUET_PATH = "temp_files/temp_inp_paruqet/data.parquet"
 if __name__ == "__main__":
     t = Timer()
 
+    if not os.environ.get('HF_DATASETS_CACHE'):
+        print("`HF_DATASETS_CACHE` not set, default location is `$HOME/.cache/huggingface/datasets`")
+
     table = []
-    try:
-        # first check if dataset is already loaded
-        ds = datasets.load_from_disk("temp_files/temp_inp_ds")
-        if not os.path.exists("temp_files/temp_inp_paruqet/data.parquet"):
-            raise FileNotFoundError
-    except:
-        ds = (
+    ds = ( 
             datasets.load_dataset(
             DATASET,
             split="train",
@@ -39,14 +36,14 @@ if __name__ == "__main__":
             )
         )   
 
-        ds.save_to_disk("temp_files/temp_inp_ds")
+    ds.save_to_disk("temp_files/temp_inp_ds")
 
-        os.makedirs("temp_files/temp_inp_paruqet", exist_ok=True)
-        (
-            ds
-            .to_pandas()
-            .to_parquet("temp_files/temp_inp_paruqet/data.parquet")
-        )
+    os.makedirs("temp_files/temp_inp_paruqet", exist_ok=True)
+    (
+        ds
+        .to_pandas()
+        .to_parquet(PARQUET_PATH)
+    )
     warnings.warn("This benchmark has no validation, and is purely for memory and speed benchmarking.")
 
     io_args = IOArgs(
@@ -59,21 +56,20 @@ if __name__ == "__main__":
         clean_cache=True,
     )
     meta_args = MetaArgs(column="text", batch_size=10000)
-
+    minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
     with t("MinHash Pure RS"):
         ctx = click.Context(minhash_pure_rs_main)
         io_args.output = minhash_output_rs = "./temp_files/temp_output_minhash_rs"
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
         ctx.invoke(
             minhash_pure_rs_main,
             io_args=io_args,
             meta_args=meta_args,
             minhash_args=minhash_args,
+            parquet_path = PARQUET_PATH
         )
 
     with t("MinRust"):
         ctx = click.Context(minhash_rust_main)
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.45, b=50, r=4)
         io_args.output = minhash_output_rust = "./temp_files/temp_output_minhash_rust"
         ctx.invoke(
             minhash_rust_main,
@@ -84,7 +80,6 @@ if __name__ == "__main__":
 
     with t("MinHash"):
         ctx = click.Context(minhash_main)
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
         io_args.output = minhash_output = "./temp_files/temp_output_minhash"
         ctx.invoke(
             minhash_main,

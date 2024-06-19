@@ -14,10 +14,18 @@ import numpy as np
 
 from text_dedup.dedup_rs import EmbedFunc
 from text_dedup import logger
-from text_dedup.utils import (CLUSTER_COLUMN, INDEX_COLUMN,
-                              DisableReferenceCount, IOArgs, MetaArgs,
-                              MinHashArgs, Timer, UnionFind, load_hf_dataset,
-                              optimal_param)
+from text_dedup.utils import (
+    CLUSTER_COLUMN,
+    INDEX_COLUMN,
+    DisableReferenceCount,
+    IOArgs,
+    MetaArgs,
+    MinHashArgs,
+    Timer,
+    UnionFind,
+    load_hf_dataset,
+    optimal_param,
+)
 
 SEED = 42
 RNG = np.random.RandomState(SEED)
@@ -54,8 +62,14 @@ def main(
         # The following assumes a "perfect hash". using 16 bit hashes might challenge this assumption
         # lower precision dtype will cause more collisions, so higher false_positives and less false negatives.
         # Both effects move the result towards more documents being considered duplicates.
-        Emb = EmbedFunc(threshold=0.5,num_perm=minhash_args.num_perm,false_positive= 0.5,
-                        false_negative=0.5,main_col=SIGNATURE_COLUMN,idx_col=INDEX_COLUMN)
+        Emb = EmbedFunc(
+            threshold=0.5,
+            num_perm=minhash_args.num_perm,
+            false_positive=0.5,
+            false_negative=0.5,
+            main_col=SIGNATURE_COLUMN,
+            idx_col=INDEX_COLUMN,
+        )
 
     timer = Timer()
 
@@ -67,7 +81,6 @@ def main(
                 >= minhash_args.min_length,
                 num_proc=io_args.num_proc,
             )
-        
 
         LEN_DATASET = len(ds)
 
