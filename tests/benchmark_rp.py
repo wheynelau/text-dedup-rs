@@ -2,15 +2,12 @@ import os
 
 import click
 import datasets
-import tracemalloc
 from text_dedup import logger
 from text_dedup.minhash import main as minhash_main
 from text_dedup.minhash_rust import main as minhash_rust_main
 from text_dedup.minhash_pure_rs import main as minhash_pure_rs_main
 from text_dedup.utils import (IOArgs, MetaArgs, MinHashArgs,
                               Timer)
-
-import warnings
 
 NUM_PROC = os.cpu_count()
 DATASET = "togethercomputer/RedPajama-Data-1T-Sample"
@@ -70,7 +67,6 @@ if __name__ == "__main__":
             parquet_path = PARQUET_PATH
         )
 
-    tracemalloc.start()
     with t("MinRust"):
         ctx = click.Context(minhash_rust_main)
         io_args.output = minhash_output_rust = "./temp_files/temp_output_minhash_rust"
@@ -81,12 +77,6 @@ if __name__ == "__main__":
             minhash_args=minhash_args,
         )
 
-    current, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-    print(f"Current memory usage: {current / 1024**2:.2f} MB")
-    print(f"Peak memory usage: {peak / 1024**2:.2f} MB")
-
-    tracemalloc.start()
     with t("MinHash"):
         ctx = click.Context(minhash_main)
         io_args.output = minhash_output = "./temp_files/temp_output_minhash"
@@ -96,36 +86,3 @@ if __name__ == "__main__":
             meta_args=meta_args,
             minhash_args=minhash_args,
         )
-    current, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-
-    print(f"Current memory usage: {current / 1024**2:.2f} MB")
-    print(f"Peak memory usage: {peak / 1024**2:.2f} MB")
-    # try:
-    #     uf2results(f"{minhash_output}/uf.pkl", "MinHash", t.elapsed_times.get("MinHash"))
-    #     uf2results(
-    #         f"{minhash_output_rust}/uf.json", "MinHashRust", t.elapsed_times.get("MinRust")
-    #     )
-    #     uf2results(
-    #         f"{minhash_output_rs}/uf.json", "MinHashPureRS", t.elapsed_times.get("MinHash Pure RS")
-    #     )
-    # except FileNotFoundError:
-    #     print(f"Unable to find uf.pkl in {minhash_output} or {minhash_output_rust}")
-
-    # exact_title_results(ds=ds, name="Exact Title")
-
-    # print(
-    #     pd.DataFrame(
-    #         table,
-    #         columns=[
-    #             "Algorithm",
-    #             "Precision (Duplicates)",
-    #             "Recall (Duplicates)",
-    #             "Precision (Non Duplicates)",
-    #             "Recall (Non Duplicates)",
-    #             "Macro F1 score",
-    #             "Accuracy",
-    #             "Time",
-    #         ],
-    #     ).to_markdown(index=False)
-    # )
