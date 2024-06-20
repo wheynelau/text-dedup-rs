@@ -2,10 +2,10 @@ use lazy_static::lazy_static;
 use std::collections::HashSet;
 use rand::{distributions::Uniform, Rng, SeedableRng};
 use regex::Regex;
-use sha1::{Sha1, Digest};
 use byteorder::{ByteOrder, LittleEndian};
 use ndarray::ArcArray1;
 use base64::{Engine as _, engine::general_purpose};
+use sha3::{Digest, Sha3_256};
 
 /// TODO: Remove hardcodes
 const D :u32 = 32;
@@ -29,7 +29,7 @@ fn ngrams(sequence: Vec<&str>, n: i32, min_length: i32) -> Vec<Vec<&str>> {
 
 fn sha1_hash(data: &[u8]) -> u64 {
     let d = D;
-    let mut hasher = Sha1::new();
+    let mut hasher = Sha3_256::new();
     hasher.update(data);
     let result = hasher.finalize();
 
@@ -132,7 +132,8 @@ pub fn py_embed_func(text: &str, n_grams:i32, permutations: (ArcArray1<u64>, Arc
     let hs: Vec<String> = hash_ranges.iter().map(|(start, end)| {
         let start = *start as usize;
         let end = *end as usize;
-        let inner_vec : Vec<u8> = hashvalues[start..end].iter().flat_map(|&x| x.to_le_bytes().to_vec()).collect();
+        let inner_vec : Vec<u8> = hashvalues[start..end].iter()
+                            .flat_map(|&x| x.swap_bytes().to_le_bytes().to_vec()).collect();
         general_purpose::STANDARD.encode(&inner_vec)
     }).collect();
     // let hs: Vec<Vec<u8>> = hash_ranges.iter().map(|&(start, end)| {
