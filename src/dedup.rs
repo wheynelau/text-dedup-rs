@@ -2,7 +2,7 @@ use arrow::{array::{Int64Array, RecordBatch, StringArray}};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use rayon::prelude::*;
 use serde_json::json;
-use std::{collections::{HashMap, HashSet}, fs::File, path::Path, sync::Mutex};
+use std::{collections::{HashMap, HashSet}, fs::File, path::Path, sync::{Arc,Mutex}};
 use clap::Parser;
 
 mod embed;
@@ -64,22 +64,25 @@ fn batch_add(hashes: Vec<String>, key: i32, hash_tables: &mut Vec<HashMap<String
     });
 }
 
-fn cluster(hash_tables: Vec<HashMap<String, HashSet<i32>>>)
-    -> union::UnionFind {
-    let mut uf = union::UnionFind::new();
-    for table in &hash_tables {
+fn cluster(hash_tables: Vec<HashMap<String, HashSet<i32>>>) -> union::UnionFind {
+    let uf = union::UnionFind::new();
+    let uf = Arc::new(Mutex::new(uf));
+
+    hash_tables.par_iter().for_each(|table| {
+        let mut uf = uf.lock().unwrap(); // Lock the UnionFind for each operation
         for cluster in table.values() {
             if cluster.len() <= 1 {
                 continue;
             }
             let idx: i32 = *cluster.iter().min().expect("Cluster should not be empty");
             for &x in cluster {
-                // self.edges.push((x, idx)); // Doesn't seem necessary
                 uf.union(x as usize, idx as usize);
             }
         }
-    }
-    uf
+    });
+
+    // Extract the UnionFind from Arc<Mutex<>>. This is safe because no other threads are using it now.
+    Arc::try_unwrap(uf).ok().expect("Failed to unwrap Arc").into_inner().unwrap()
 }
 
 fn generate_hash_rangs(b: i32, r: i32) -> Vec<(i32, i32)> {
