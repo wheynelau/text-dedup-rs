@@ -92,6 +92,8 @@ INFO     After                           : 10518
 
 This benchmark uses this dataset "togethercomputer/RedPajama-Data-1T-Sample" which is a sample of the RedPajama dataset.
 
+Speedup:  
+
 Note that this dataset does not have any validation, so the results are not verified.
 
 System specs:
@@ -117,13 +119,13 @@ INFO     Clustering                      : 3.43s
 INFO     Filtering                       : 180.63s  
 INFO     Saving                          : 19.72s   
 INFO     Cleaning                        : 1.19s    
-INFO     Total                           : 620.97s   
+INFO     Total                           : 620.97s 1.82x speedup
 INFO     Before                          : 930460  
 INFO     After                           : 860760  
 
 MinHashPureRS:
 Data received from Rust: {'len': 844493}  
-INFO     Total                           : 71.20s  
+INFO     Total                           : 71.20s  15.88x speedup
 INFO     Before                          : 930514  
 INFO     After                           : 844493  
 
