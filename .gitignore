@@ -164,3 +164,6 @@ output
 *.crc
 *.pkl
 *.parquet
+target/
+temp_files/
+*.ipynb

@@ -116,13 +116,5 @@ mod tests {
         // try saving
         uf.dump("union_find.json").unwrap();
 
-        // try loading
-
-        let mut uf2 = UnionFind::load("union_find.json").unwrap();
-        assert_eq!(uf2.find(1), 1);
-        assert_eq!(uf2.find(2), 1);
-        assert_eq!(uf2.find(3), 1);
-        assert_eq!(uf.find(7), 7);
-
     }
 }

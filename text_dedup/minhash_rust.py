@@ -14,10 +14,18 @@ import numpy as np
 
 from text_dedup.dedup_rs import EmbedFunc
 from text_dedup import logger
-from text_dedup.utils import (CLUSTER_COLUMN, INDEX_COLUMN,
-                              DisableReferenceCount, IOArgs, MetaArgs,
-                              MinHashArgs, Timer, UnionFind, load_hf_dataset,
-                              optimal_param)
+from text_dedup.utils import (
+    CLUSTER_COLUMN,
+    INDEX_COLUMN,
+    DisableReferenceCount,
+    IOArgs,
+    MetaArgs,
+    MinHashArgs,
+    Timer,
+    UnionFind,
+    load_hf_dataset,
+    optimal_param,
+)
 
 SEED = 42
 RNG = np.random.RandomState(SEED)
@@ -45,7 +53,7 @@ def main(
     if minhash_args.b is not None and minhash_args.r is not None:
         B, R = minhash_args.b, minhash_args.r
         Emb = EmbedFunc.from_b_r(
-            B, R, minhash_args.num_perm, SIGNATURE_COLUMN, INDEX_COLUMN
+            B, R, minhash_args.ngram, minhash_args.num_perm, SIGNATURE_COLUMN, INDEX_COLUMN
         )
     else:
         # Compute the optimal `MinHashLSH` parameter that minimizes the weighted sum
@@ -54,8 +62,15 @@ def main(
         # The following assumes a "perfect hash". using 16 bit hashes might challenge this assumption
         # lower precision dtype will cause more collisions, so higher false_positives and less false negatives.
         # Both effects move the result towards more documents being considered duplicates.
-        Emb = EmbedFunc(threshold=0.5,num_perm=minhash_args.num_perm,false_positive= 0.5,
-                        false_negative=0.5,main_col=SIGNATURE_COLUMN,idx_col=INDEX_COLUMN)
+        Emb = EmbedFunc(
+            threshold=0.5,
+            num_perm=minhash_args.num_perm,
+            n_grams=minhash_args.ngram,
+            false_positive=0.5,
+            false_negative=0.5,
+            main_col=SIGNATURE_COLUMN,
+            idx_col=INDEX_COLUMN,
+        )
 
     timer = Timer()
 
@@ -67,7 +82,6 @@ def main(
                 >= minhash_args.min_length,
                 num_proc=io_args.num_proc,
             )
-        
 
         LEN_DATASET = len(ds)
 
@@ -77,7 +91,7 @@ def main(
                 input_columns=[meta_args.column, INDEX_COLUMN],
                 remove_columns=[col for col in ds.column_names if col != INDEX_COLUMN],
                 batched=True,
-                batch_size=10000,
+                batch_size=meta_args.batch_size,
                 with_indices=False,
                 desc="Fingerprinting with rust...",
             )

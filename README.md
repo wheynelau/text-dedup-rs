@@ -57,42 +57,40 @@ docker run text-dedup "python tests/benchmark_news.py"
 
 - Removed pyspark from requirements
 - Removed simhash and pyspark runs from benchmark core
-- Added a minhashrust run to benchmark core
+- Added a minhashrust and pure rust to benchmark core and news.
+- Added a new dataset for speed and memory testing
 
 ## Results
 
-Only benchmark_core was tested.  
-
-| Algorithm   |   Precision (Duplicates) |   Recall (Duplicates) |   Precision (Non Duplicates) |   Recall (Non Duplicates) |   Macro F1 score |   Accuracy | Time   |
-|:------------|-------------------------:|----------------------:|-----------------------------:|--------------------------:|-----------------:|-----------:|:-------|
-| MinHash     |                   0.9594 |                0.9445 |                       0.9474 |                    0.9616 |           0.9534 |     0.924  | 22.82s |
-| MinHashRust |                   0.9572 |                0.9426 |                       0.946  |                    0.9598 |           0.9516 |     0.9284 | 13.38s |
-| Exact Title |                   0.8302 |                0.5521 |                       0.7098 |                    0.9065 |           0.77   |     0.7456 | -      |
-
-rust:  
- INFO     Fused embedding, sharding       : 5.08s timer.py:65  
- INFO     Clustering                      : 0.40s timer.py:65  
- INFO     Filtering                       : 2.94s timer.py:65  
- INFO     Saving                          : 1.37s timer.py:65  
- INFO     Cleaning                        : 0.02s timer.py:65  
- INFO     Total                           : 12.15s timer.py:65  
- INFO     Before                          : 100000 minhash_rust.py:123  
- INFO     After                           : 72495   
-python:  
- INFO     MinHashing                      : 6.60s timer.py:65  
- INFO     Sharding                        : 8.05s timer.py:65  
- INFO     Clustering                      : 1.20s timer.py:65  
- INFO     Filtering                       : 2.64s timer.py:65  
- INFO     Saving                          : 0.75s timer.py:65  
- INFO     Cleaning                        : 0.03s timer.py:65  
- INFO     Total                           : 21.41s timer.py:65  
- INFO     Before                          : 100000 minhash.py:306  
- INFO     After                           : 72208    
+Benchmark results are in [BENCHMARKS](docs/BENCHMARKS.md)
 
 ## Issues
 
-One caveat I noticed was that rust didn't produce tuples with whitespaces, for example  ("a", "b" "c") instead of  
+1. One caveat I noticed was that rust didn't produce tuples with whitespaces, for example  ("a", "b" "c") instead of  
  (" ", "a", "b") which is what python produced. It may affect the results but I'm not sure.
+
+2. When testing on a larger dataset, the rust code removed significantly lesser data () than the python code.
+As the data was not labelled, it could be not be verified if the duplicates were removed correctly.
+
+3. Using par_iter for some portions of the rust code lead to small differences in the results. 
+
+For benchmark core:
+```
+# With par_iter on clustering and hashing
+| Algorithm     |   Precision (Duplicates) |   Recall (Duplicates) |   Precision (Non Duplicates) |   Recall (Non Duplicates) |   Macro F1 score |   Accuracy | Time   |
+| MinHashRust   |                   0.9565 |                0.9432 |                       0.9466 |                    0.9591 |           0.9513 |     0.9292 | 15.04s |
+| MinHashPureRS |                   0.9555 |                0.9431 |                       0.9466 |                    0.9582 |           0.9508 |     0.9293 | 6.86s  |
+
+# Without par_iter on clustering and hashing
+| MinHashRust   |                   0.9565 |                0.9432 |                       0.9466 |                    0.9591 |           0.9513 |     0.9292 | 15.04s |
+| MinHashPureRS |                   0.9565 |                0.9432 |                       0.9466 |                    0.9592 |           0.9513 |     0.9292 | 9.14s  |
+
+# On a larger dataset, the difference was more pronounced in the final len from 930460
+MinHashPureRS: 844493
+MinHashRust: 860760
+```
+
+For testing purposes, the parellelized version is kept. The original code is at this [point](https://github.com/wheynelau/text-dedup-rs/blob/b121d1431f657ea71034b07dc39ae3428f363dbd/src/dedup.rs)
 
 ## TODO
 - [x] Write setup.py -> setup pyproject.toml for `pip install .`

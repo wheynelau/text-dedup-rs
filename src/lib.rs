@@ -14,6 +14,7 @@ struct EmbedFunc {
     hash_values: Vec<(i32,i32)>,
     main_col: String,
     idx_col: String,
+    n_grams: i32,
     #[pyo3(get)]
     hash_tables: Vec<HashMap<String, HashSet<i32>>>,
     #[pyo3(get)]
@@ -56,10 +57,15 @@ impl EmbedFunc {
     /// * `idx_col` - The name of the index column
     /// 
     #[new]
-    fn new(threshold:f64, num_perm:i32,false_positive:f64, false_negative:f64,
-        main_col: &str, idx_col: &str, ) -> Self {
+    fn new(threshold:f64, 
+        num_perm:i32,
+        n_grams: i32,
+        false_positive:f64, 
+        false_negative:f64,
+        main_col: &str, 
+        idx_col: &str, ) -> Self {
         let (b, r) = utils::optimal_param(threshold, num_perm, false_positive, false_negative);
-        Self::shared_init(b, r, num_perm, main_col, idx_col)
+        Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col)
     }
     ///
     /// Create a new EmbedFunc object with the known B and R values
@@ -73,13 +79,23 @@ impl EmbedFunc {
     /// * `idx_col` - The name of the index column
     /// 
     #[classmethod]
-    fn from_b_r(_cls: &Bound<'_, PyType>, b:i32, r:i32, num_perm:i32, main_col: &str, idx_col: &str) -> Self {
+    fn from_b_r(_cls: &Bound<'_, PyType>, b:i32, r:i32, n_grams: i32, num_perm:i32, main_col: &str, idx_col: &str) -> Self {
 
-        Self::shared_init(b, r, num_perm, main_col, idx_col)
+        Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col)
     }
     #[staticmethod]
-    fn shared_init(b:i32, r:i32, num_perm:i32, main_col: &str, idx_col: &str) -> Self {
+    fn shared_init(b:i32, r:i32, n_grams:i32, num_perm:i32, main_col: &str, idx_col: &str) -> Self {
 
+        let b = {
+            let max_b = num_perm / r;
+            if b > max_b {
+                println!("Number of permutations: {}, r: {}", num_perm, r);
+                println!("Warning: Provided B value is too high. Adjusting B from {} to {}", b, max_b);
+                max_b
+            } else {
+                b
+            }
+        };
         let hash_ranges: Vec<(i32, i32)> = (0..b)
                         .map(|i| (i * r, (i + 1) * r))
                         .collect();
@@ -91,6 +107,7 @@ impl EmbedFunc {
             hash_values: hash_ranges,
             main_col: main_col.to_string(),
             idx_col: idx_col.to_string(),
+            n_grams,
             hash_tables,
             edges,
             permutations,
@@ -100,7 +117,7 @@ impl EmbedFunc {
     /// Not in use unless its for single line
     /// 
     fn embed_func(&self, text:&str, idx: i32) -> HashMap<String, SIG>{
-        let hs: Vec<String> = embed::py_embed_func(&text, self.permutations.clone(),self.hash_values.to_vec());
+        let hs: Vec<String> = embed::py_embed_func(&text, self.n_grams, self.permutations.clone(),self.hash_values.to_vec());
 
         let mut map = HashMap::new();
         map.insert(self.main_col.to_string(), SIG::SIGNATURE(hs));
@@ -131,7 +148,7 @@ impl EmbedFunc {
     fn batch_embed_shard(&mut self, text: Vec<String>, idx: Vec<i32>) {
         let text_idx: Vec<(Vec<String>,i32)> = text.par_iter().zip(idx.par_iter())
             .map( |(s, &i)| {
-                let mapped =  embed::py_embed_func(&s, self.permutations.clone(),self.hash_values.to_vec());
+                let mapped =  embed::py_embed_func(&s, self.n_grams, self.permutations.clone(),self.hash_values.to_vec());
                 (mapped , i)
             }).collect();
         
@@ -166,7 +183,7 @@ impl EmbedFunc {
 }
 
 #[pymodule]
-fn dedup_rs(_py: Python, m: &PyModule) -> PyResult<()> {
+fn dedup_rs(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add_class::<EmbedFunc>()?;
     m.add_class::<union::UnionFind>()?;
     Ok(())

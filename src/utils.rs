@@ -45,9 +45,10 @@ pub fn optimal_param(threshold: f64,
     }
     opt
 }
-
+#[cfg(test)]
 mod tests {
     
+    use super::*;
 
     #[test]
     fn test_riemann_sum() {
@@ -64,5 +65,16 @@ mod tests {
         let tolerance = 0.001;
         println!("Result: {}, Expected: {}", result, expected);
         assert!((result - expected).abs() < tolerance, "The calculated integral was not within the expected tolerance");
+    }
+    #[test]
+    fn test_optimal_param() {
+        let threshold = 0.5;
+        let num_perm = 128;
+        let false_positive_weight = 1.0;
+        let false_negative_weight = 1.0;
+        let (b, r) = optimal_param(threshold, num_perm, false_positive_weight, false_negative_weight);
+        println!("Optimal parameters: b = {}, r = {}", b, r);
+        assert_eq!(b, 25);
+        assert_eq!(r, 5);
     }
 }
