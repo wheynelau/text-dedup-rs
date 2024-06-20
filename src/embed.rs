@@ -11,7 +11,6 @@ use base64::{Engine as _, engine::general_purpose};
 const D :u32 = 32;
 const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
 const MAX_HASH:u64 = 2u64.pow(D) - 1;
-const N: i32 = 2;
 const MIN_LENGTH:i32 = 5;
 
 lazy_static! {
@@ -95,11 +94,11 @@ pub fn generate_permutations(module_prime: usize, num_perm:i32) -> (ArcArray1<u6
 }
 
 
-pub fn py_embed_func(text: &str, permutations: (ArcArray1<u64>, ArcArray1<u64>), hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
+pub fn py_embed_func(text: &str, n_grams:i32, permutations: (ArcArray1<u64>, ArcArray1<u64>), hash_ranges:Vec<(i32,i32)>) -> Vec<String> {
 
     let (a, b) = permutations;
 
-    let tokens = tokenize(&text, N, MIN_LENGTH);
+    let tokens = tokenize(&text, n_grams, MIN_LENGTH);
 
     let hashes: Vec<u64> = hash_tokens(tokens);
 
@@ -161,8 +160,8 @@ mod tests {
         let hash_ranges: Vec<(i32, i32)> = (0..b)
                         .map(|i| (i * r, (i + 1) * r))
                         .collect();
-
+        let n = 2;
         let text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
-        py_embed_func(text,permutations, hash_ranges);
+        py_embed_func(text, n, permutations, hash_ranges);
     }
 }

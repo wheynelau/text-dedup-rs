@@ -53,7 +53,7 @@ def main(
     if minhash_args.b is not None and minhash_args.r is not None:
         B, R = minhash_args.b, minhash_args.r
         Emb = EmbedFunc.from_b_r(
-            B, R, minhash_args.num_perm, SIGNATURE_COLUMN, INDEX_COLUMN
+            B, R, minhash_args.ngram, minhash_args.num_perm, SIGNATURE_COLUMN, INDEX_COLUMN
         )
     else:
         # Compute the optimal `MinHashLSH` parameter that minimizes the weighted sum
@@ -65,6 +65,7 @@ def main(
         Emb = EmbedFunc(
             threshold=0.5,
             num_perm=minhash_args.num_perm,
+            n_grams=minhash_args.ngram,
             false_positive=0.5,
             false_negative=0.5,
             main_col=SIGNATURE_COLUMN,

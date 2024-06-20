@@ -23,6 +23,9 @@ struct Args {
     #[arg(short, long, default_value="200")]
     num_perm: i32,
 
+    #[arg(short, long, default_value="2")]
+    n_grams: i32,
+
     #[arg(short, long, default_value="text")]
     main_col: String,
 
@@ -78,6 +81,12 @@ fn cluster(hash_tables: Vec<HashMap<String, HashSet<i32>>>)
     }
     uf
 }
+
+fn generate_hash_rangs(b: i32, r: i32) -> Vec<(i32, i32)> {
+    (0..b)
+        .map(|i| (i * r, (i + 1) * r))
+        .collect()
+}
    
 
 fn main() {
@@ -95,9 +104,7 @@ fn main() {
         }
     };
     
-    let hash_ranges: Vec<(i32, i32)> = (0..b)
-                        .map(|i| (i * args.r, (i + 1) * args.r))
-                        .collect();
+    let hash_ranges: Vec<(i32, i32)> = generate_hash_rangs(b, args.r);
 
     let mut hash_tables: Vec<HashMap<String, HashSet<i32>>> = vec![HashMap::new(); b as usize];
 
@@ -134,7 +141,7 @@ fn main() {
 
     let text_idx:Vec<(Vec<String>,i32)> = signatures.par_iter().zip(indices.par_iter())
         .map(|(text, idx)| {
-            let hs: Vec<String> = embed::py_embed_func(&text, permutations.clone(), hash_ranges.clone());
+            let hs: Vec<String> = embed::py_embed_func(&text, args.n_grams, permutations.clone(), hash_ranges.clone());
             (hs, *idx)
         }).collect();
     text_idx.iter().for_each(|(sig, i)| {

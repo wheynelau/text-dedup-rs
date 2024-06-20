@@ -65,10 +65,11 @@ def main(
 
             command = (
                 f"{binary_path} "
-                "--b {} --r {} --num-perm {} --parquet-path {} --main-col {} --idx-col {} --uf-output {}".format(
+            "--b {} --r {} --num-perm {} --n-grams {} --parquet-path {} --main-col {} --idx-col {} --uf-output {}".format(
                     minhash_args.b,
                     minhash_args.r,
                     minhash_args.num_perm,
+                    minhash_args.ngram,
                     parquet_path,
                     meta_args.column,
                     meta_args.idx_column if meta_args.idx_column else "id",
