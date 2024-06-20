@@ -3,6 +3,7 @@
 - [Benchmarks](#benchmarks)
   - [Benchmark core](#benchmark-core)
   - [Benchmark news](#benchmark-news)
+  - [Speed and memory testing](#speed-and-memory-testing)
 
 ## Benchmark core
 
@@ -86,3 +87,44 @@ INFO     Embed                           : 0.98s
 INFO     Total                           : 1.89s  
 INFO     Before                          : 14211  
 INFO     After                           : 10518  
+
+## Speed and memory testing
+
+This benchmark uses this dataset "togethercomputer/RedPajama-Data-1T-Sample" which is a sample of the RedPajama dataset.
+
+Note that this dataset does not have any validation, so the results are not verified.
+
+System specs:
+- 128 vCPUs
+
+MinHash:
+INFO     Loading                         : 191.34s  
+INFO     MinHashing                      : 327.85s  
+INFO     Sharding                        : 381.44s  
+INFO     Clustering                      : 12.60s   
+INFO     Filtering                       : 205.53s  
+INFO     Saving                          : 11.44s   
+INFO     Cleaning                        : 1.91s    
+INFO     Total                           : 1132.11s  
+INFO     Before                          : 930460    
+INFO     After                           : 631281  
+
+MinHashRust:
+
+INFO     Loading                         : 66.87s  
+INFO     Fused embedding, sharding       : 349.13s  
+INFO     Clustering                      : 3.43s    
+INFO     Filtering                       : 180.63s  
+INFO     Saving                          : 19.72s   
+INFO     Cleaning                        : 1.19s    
+INFO     Total                           : 620.97s   
+INFO     Before                          : 930460  
+INFO     After                           : 860760  
+
+MinHashPureRS:
+Data received from Rust: {'len': 844493}
+INFO     Total                           : 71.20s  
+INFO     Before                          : 930514  
+INFO     After                           : 844493  
+
+
