@@ -122,7 +122,7 @@ INFO     Before                          : 930460
 INFO     After                           : 860760  
 
 MinHashPureRS:
-Data received from Rust: {'len': 844493}
+Data received from Rust: {'len': 844493}  
 INFO     Total                           : 71.20s  
 INFO     Before                          : 930514  
 INFO     After                           : 844493  
