@@ -55,20 +55,22 @@ fn process_batch(batch: &RecordBatch, main_col: &str, idx_col: &str) -> (StringA
     (text_col.clone(), id_col.clone())
 }
 
-fn batch_add(hashes: Vec<String>, key: i32, hash_tables: &mut Vec<HashMap<String, HashSet<i32>>>) {
+fn batch_add(hashes: Vec<String>, key: i32, hash_tables: &Arc<Vec<Mutex<HashMap<String, HashSet<i32>>>>>) {
     hashes.into_iter().enumerate().for_each(|(index, hash)| {
-        if let Some(table) = hash_tables.get_mut(index) {
+        if let Some(table_lock) = hash_tables.get(index) {
+            let mut table = table_lock.lock().unwrap();
             let entry = table.entry(hash).or_insert_with(HashSet::new);
             entry.insert(key);
         }
     });
 }
 
-fn cluster(hash_tables: Vec<HashMap<String, HashSet<i32>>>) -> union::UnionFind {
+fn cluster(hash_tables: Arc<Vec<Mutex<HashMap<String, HashSet<i32>>>>>) -> union::UnionFind {
     let uf = union::UnionFind::new();
     let uf = Arc::new(Mutex::new(uf));
 
-    hash_tables.par_iter().for_each(|table| {
+    hash_tables.par_iter().for_each(|table_mutex| {
+        let table = table_mutex.lock().unwrap(); // Lock the table to read its contents
         let mut uf = uf.lock().unwrap(); // Lock the UnionFind for each operation
         for cluster in table.values() {
             if cluster.len() <= 1 {
@@ -109,7 +111,7 @@ fn main() {
     
     let hash_ranges: Vec<(i32, i32)> = generate_hash_rangs(b, args.r);
 
-    let mut hash_tables: Vec<HashMap<String, HashSet<i32>>> = vec![HashMap::new(); b as usize];
+    let hash_tables = Arc::new((0..b).map(|_| Mutex::new(HashMap::<String, HashSet<i32>>::new())).collect::<Vec<_>>());
 
     let permutations = embed::generate_permutations(MODULE_PRIME as usize, args.num_perm);
 
@@ -147,8 +149,11 @@ fn main() {
             let hs: Vec<String> = embed::py_embed_func(&text, args.n_grams, permutations.clone(), hash_ranges.clone());
             (hs, *idx)
         }).collect();
-    text_idx.iter().for_each(|(sig, i)| {
-        batch_add(sig.clone(), *i, &mut hash_tables);
+
+    println!("Time to embed to HS: {:?}", start_time.elapsed());
+    let start_time = std::time::Instant::now();
+    text_idx.par_iter().for_each(|(sig, i)| {
+        batch_add(sig.clone(), *i, &hash_tables);
     });
 
     println!("Time to hash: {:?}", start_time.elapsed());
@@ -194,7 +199,8 @@ fn main() {
         "len": final_vec.len(),
     });
     // save data
+    print!("{}", &data.to_string());
     let file = File::create("rs_output.json").unwrap();
     serde_json::to_writer_pretty(&file, &data).unwrap();
-    print!("{}", &data.to_string());
+    
 }
