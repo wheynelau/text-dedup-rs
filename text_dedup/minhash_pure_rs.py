@@ -5,26 +5,16 @@ from __future__ import annotations
 import subprocess
 import multiprocessing as mp
 import os
-import random
 import re
 import json
 import click
-import datasets
-import numpy as np
 
 from text_dedup import logger
-from text_dedup.dedup_rs import UnionFind as UnionFindRS
 from text_dedup.utils import (
-    CLUSTER_COLUMN,
-    INDEX_COLUMN,
-    DisableReferenceCount,
     IOArgs,
     MetaArgs,
     MinHashArgs,
     Timer,
-    UnionFind,
-    load_hf_dataset,
-    optimal_param,
 )
 
 mp.set_start_method("fork", force=True)
@@ -52,16 +42,7 @@ def main(
             print(result.stderr)
             return
     with timer("Total"):
-        with timer("Loading"):
-            ds, id2id = load_hf_dataset(io_args=io_args, meta_args=meta_args)
-            ds = ds.filter(
-                lambda x: len(NON_ALPHA.split(x[meta_args.column].lower()))
-                >= minhash_args.min_length,
-                num_proc=io_args.num_proc,
-            )
-        LEN_DATASET = len(ds)
-        with timer("Embed"):
-            # check if exists
+        # check if exists
 
             command = (
                 f"{binary_path} "
@@ -83,8 +64,8 @@ def main(
 
     PAD = 32
     timer.report(logger=logger, pad=PAD)
-    logger.info(f"{'Before':<{PAD}}: {LEN_DATASET}")
-    logger.info(f"{'After':<{PAD}}: {data['len']}")
+    logger.info(f"{'Before':<{PAD}}: {data['before']}")
+    logger.info(f"{'After':<{PAD}}: {data['after']}")
 
 
 if __name__ == "__main__":  # pragma: no cover

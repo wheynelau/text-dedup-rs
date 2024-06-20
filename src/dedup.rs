@@ -124,14 +124,17 @@ fn main() {
     }
     let file = File::open(path).unwrap();
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
+
     let reader = builder.with_row_groups(vec![0])
                                             .with_batch_size(100000)
                                             .build()
                                             .unwrap();
     let mut signatures: Vec<String> = Vec::with_capacity(1000000);
     let mut indices: Vec<i32> = Vec::with_capacity(1000000);
+    let mut total_len = 0;
     for result in reader {
         let batch = result.unwrap();
+        total_len += batch.num_rows();
         let (sigs, idxs) = process_batch(&batch, &args.main_col, &args.idx_col);
         signatures.extend(sigs.iter().map(|x| x.unwrap().to_string()));
         indices.extend(idxs.iter().map(|x| {
@@ -196,7 +199,8 @@ fn main() {
     println!("Time to filter: {:?}", start_time.elapsed());
 
     let data = json!({
-        "len": final_vec.len(),
+        "before" : total_len,
+        "after": final_vec.len(),
     });
     // save data
     print!("{}", &data.to_string());
