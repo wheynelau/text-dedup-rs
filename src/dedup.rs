@@ -5,7 +5,7 @@ use ndarray::ArcArray1;
 
 use rayon::prelude::*;
 use serde_json::json;
-use std::{collections::{HashMap, HashSet}, error::Error, fs::File, path::Path, sync::{Arc,Mutex}};
+use std::{collections::{HashMap, HashSet}, error::Error, path::Path, sync::{Arc,Mutex}};
 use clap::Parser;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReader;
 
@@ -126,8 +126,6 @@ pub fn default (args:Args,
     });
     // save data
     print!("{}", &data.to_string());
-    let file = File::create("rs_output.json")?;
-    serde_json::to_writer_pretty(&file, &data)?;
     
     Ok(())
 } 
@@ -178,7 +176,6 @@ pub fn streaming (args:Args,
     let _ = total_len;
 
     let cluster_column: Vec<i32> = {
-
         out_indices.par_iter_mut().map(|x| {
             // Lock the mutex and perform the find operation
             let mut uf = uf.lock().unwrap();
@@ -186,8 +183,6 @@ pub fn streaming (args:Args,
         }).collect()
     };
 
-    
-    
     let uf_path = Path::new(&args.uf_output);
     // create directory if it doesn't exist
 
@@ -212,8 +207,5 @@ pub fn streaming (args:Args,
     });
     // save data
     print!("{}", &data.to_string());
-    let file = File::create("rs_output.json")?;
-    serde_json::to_writer_pretty(&file, &data)?;
-
     Ok(())
 }

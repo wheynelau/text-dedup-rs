@@ -44,24 +44,26 @@ def main(
     with timer("Total"):
         # check if exists
 
-            command = (
-                f"{binary_path} "
-            "--b {} --r {} --num-perm {} --n-grams {} --parquet-path {} --main-col {} --idx-col {} --uf-output {}".format(
-                    minhash_args.b,
-                    minhash_args.r,
-                    minhash_args.num_perm,
-                    minhash_args.ngram,
-                    parquet_path,
-                    meta_args.column,
-                    meta_args.idx_column if meta_args.idx_column else "id",
-                    os.path.join(io_args.output, "uf.json"),
-                )
-            )
-            print(command)
-            result = subprocess.run(command, capture_output=True, text=True, shell=True)
-            with open("rs_output.json", "r") as f:
-                data = json.load(f)
-            print("Data received from Rust:", data)
+            command = [
+                binary_path,
+                "--b", str(minhash_args.b),
+                "--r", str(minhash_args.r),
+                "--num-perm", str(minhash_args.num_perm),
+                "--n-grams", str(minhash_args.ngram),
+                "--parquet-path", parquet_path,
+                "--main-col", meta_args.column,
+                "--streaming",
+                "--idx-col", meta_args.idx_column if meta_args.idx_column else "id",
+                "--uf-output", os.path.join(io_args.output, "uf.json")
+                ]
+            result = subprocess.run(command, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise Exception(result.stderr)
+            
+            print(result.stdout)
+            
+            data_from_rust = result.stdout.split("\n")[-1]
+            data = json.loads(data_from_rust)
 
     PAD = 32
     timer.report(logger=logger, pad=PAD)
