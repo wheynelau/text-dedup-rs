@@ -3,9 +3,13 @@ use pyo3::{prelude::*, types::PyType};
 use std::collections::{HashMap,HashSet};
 use rayon::prelude::*;
 
-mod embed;
-mod union;
-mod utils;
+mod utils {
+    pub mod embed;
+    pub mod unionfind;
+    pub mod optimal;
+}
+
+use crate::utils::{embed, unionfind, optimal};
 
 const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
 
@@ -64,7 +68,7 @@ impl EmbedFunc {
         false_negative:f64,
         main_col: &str, 
         idx_col: &str, ) -> Self {
-        let (b, r) = utils::optimal_param(threshold, num_perm, false_positive, false_negative);
+        let (b, r) = optimal::optimal_param(threshold, num_perm, false_positive, false_negative);
         Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col)
     }
     ///
@@ -164,8 +168,8 @@ impl EmbedFunc {
     /// A UnionFind data structure representing the clusters
     /// 
     /// Iterates the hash tables and clusters the signatures
-    fn cluster(&mut self) -> union::UnionFind{
-        let mut uf = union::UnionFind::new();
+    fn cluster(&mut self) -> unionfind::UnionFind{
+        let mut uf = unionfind::UnionFind::new();
         for table in &self.hash_tables {
             for cluster in table.values() {
                 if cluster.len() <= 1 {
@@ -185,6 +189,6 @@ impl EmbedFunc {
 #[pymodule]
 fn dedup_rs(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
     m.add_class::<EmbedFunc>()?;
-    m.add_class::<union::UnionFind>()?;
+    m.add_class::<utils::unionfind::UnionFind>()?;
     Ok(())
 }

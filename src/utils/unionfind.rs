@@ -87,13 +87,11 @@ impl UnionFind {
 }
 #[cfg(test)]
 mod tests {
-    use std::time::Instant;
 
     use super::*;
 
     #[test]
     fn test_union_find_operations() {
-        let start_process = Instant::now();
         let mut uf = UnionFind::new();
         uf.union(1, 2);
         uf.union(2, 3);
@@ -109,10 +107,6 @@ mod tests {
         assert!(uf.find(1) == uf.find(5));
         assert_eq!(uf.find(7), 7);
         assert_eq!(*uf.rank.get(&7).unwrap_or(&0) , 0);
-        let process_duration = start_process.elapsed();
-
-        dbg!(process_duration);
-
         // try saving
         uf.dump("union_find.json").unwrap();
 
