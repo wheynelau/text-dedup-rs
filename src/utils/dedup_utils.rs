@@ -8,38 +8,6 @@ use clap::Parser;
 
 use crate::utils::unionfind::UnionFind;
 
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-pub struct Args {
-
-
-    #[arg(short, long, default_value = "50")]
-    pub b:i32,
-
-    #[arg(short, long, default_value="4")]
-    pub r:i32,
-
-    #[arg(short, long, default_value="200")]
-    pub num_perm: i32,
-
-    #[arg(short, long, default_value="2")]
-    pub n_grams: i32,
-
-    #[arg(short, long, default_value="text")]
-    pub main_col: String,
-
-    #[arg(short, long)]
-    pub parquet_path: String,
-
-    #[arg(short, long, default_value="id")]
-    pub idx_col: String,
-
-    #[arg(short, long, default_value="uf_output")]
-    pub uf_output: String
-    
-}
-   
-
 pub fn batch_add(hashes: Vec<String>, key: i32, hash_tables: &Arc<Vec<Mutex<HashMap<String, HashSet<i32>>>>>) {
     hashes.into_iter().enumerate().for_each(|(index, hash)| {
         if let Some(table_lock) = hash_tables.get(index) {

@@ -1,19 +1,80 @@
-///
-/// Contains the main functions for running the main
-
 use rayon::prelude::*;
 use serde_json::json;
 use utils::parquet_utils;
 use std::{collections::{HashMap, HashSet}, fs::File, path::Path, sync::{Arc,Mutex}};
 use clap::Parser;
 
+mod utils {
+    pub mod embed;
+    pub mod unionfind;
+    pub mod dedup_utils;
+    pub mod parquet_utils;
+}
+mod dedup;
+
 use crate::utils::dedup_utils;
 use crate::utils::unionfind::UnionFind;
 use crate::utils::embed;
 use crate::utils::parquet_utils::*;
+use crate::dedup;
 
-pub fn default (reader,main_col, idx_col) {
+const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+
+
+    #[arg(short, long, default_value = "50")]
+    b:i32,
+
+    #[arg(short, long, default_value="4")]
+    r:i32,
+
+    #[arg(short, long, default_value="200")]
+    num_perm: i32,
+
+    #[arg(short, long, default_value="2")]
+    n_grams: i32,
+
+    #[arg(short, long, default_value="text")]
+    main_col: String,
+
+    #[arg(short, long)]
+    parquet_path: String,
+
+    #[arg(short, long, default_value="id")]
+    idx_col: String,
+
+    #[arg(short, long, default_value="uf_output")]
+    uf_output: String
+    
+}
+
+fn main() {
+
+    let args = Args::parse();
+    
+    // Check if B is too high
+    let b: i32 = {
+        let max_b = args.num_perm / args.r;
+        if args.b > max_b {
+            println!("Warning: Provided B value is too high. Adjusting B from {} to {}", args.b, max_b);
+            max_b
+        } else {
+            args.b
+        }
+    };
+    
+    let hash_ranges: Vec<(i32, i32)> = dedup_utils::generate_hash_rangs(b, args.r);
+
+    let hash_tables = Arc::new((0..b).map(|_| Mutex::new(HashMap::<String, HashSet<i32>>::new())).collect::<Vec<_>>());
+
+    let permutations = embed::generate_permutations(MODULE_PRIME as usize, args.num_perm);
+
+    // Setup conditions
+    let start_time = std::time::Instant::now();
+    let reader = parquet_utils::get_reader(100000, &args.parquet_path);
     let mut signatures: Vec<String> = Vec::with_capacity(1000000);
     let mut indices: Vec<i32> = Vec::with_capacity(1000000);
     let mut total_len = 0;
@@ -94,4 +155,4 @@ pub fn default (reader,main_col, idx_col) {
     let file = File::create("rs_output.json").unwrap();
     serde_json::to_writer_pretty(&file, &data).unwrap();
     
-} 
+}

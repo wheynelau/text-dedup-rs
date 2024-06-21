@@ -14,7 +14,7 @@ crate-type = ["cdylib"]
 
 [[bin]]
 name = "dedup"
-path = "src/dedup.rs"
+path = "src/main.rs"
 
 
 [dependencies]
