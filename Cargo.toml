@@ -12,6 +12,10 @@ name = "dedup_rs"
 path = "src/lib.rs"
 crate-type = ["cdylib"]
 
+[[bin]]
+name = "dedup"
+path = "src/main.rs"
+
 
 [dependencies]
 pyo3 = "0.21.2"
