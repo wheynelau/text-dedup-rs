@@ -57,6 +57,7 @@ def main(
                     os.path.join(io_args.output, "uf.json"),
                 )
             )
+            print(command)
             result = subprocess.run(command, capture_output=True, text=True, shell=True)
             with open("rs_output.json", "r") as f:
                 data = json.load(f)

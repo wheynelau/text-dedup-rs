@@ -4,7 +4,6 @@
 /// 
 use std::{collections::{HashMap, HashSet}, sync::{Arc, Mutex}};
 use rayon::prelude::*;
-use clap::Parser;
 
 use crate::utils::unionfind::UnionFind;
 
@@ -18,12 +17,9 @@ pub fn batch_add(hashes: Vec<String>, key: i32, hash_tables: &Arc<Vec<Mutex<Hash
     });
 }
 
-pub fn cluster(hash_tables: Arc<Vec<Mutex<HashMap<String, HashSet<i32>>>>>) -> UnionFind {
-    let uf = UnionFind::new();
-    let uf = Arc::new(Mutex::new(uf));
-
+pub fn cluster(hash_tables: &Arc<Vec<Mutex<HashMap<String, HashSet<i32>>>>>,  uf: Arc<Mutex<UnionFind>> ) {
     hash_tables.par_iter().for_each(|table_mutex| {
-        let table = table_mutex.lock().unwrap(); // Lock the table to read its contents
+        let mut table = table_mutex.lock().unwrap(); // Lock the table to read its contents
         let mut uf = uf.lock().unwrap(); // Lock the UnionFind for each operation
         for cluster in table.values() {
             if cluster.len() <= 1 {
@@ -34,11 +30,25 @@ pub fn cluster(hash_tables: Arc<Vec<Mutex<HashMap<String, HashSet<i32>>>>>) -> U
                 uf.union(x as usize, idx as usize);
             }
         }
+        table.clear(); // Clear the table after clustering
     });
 
-    // Extract the UnionFind from Arc<Mutex<>>. This is safe because no other threads are using it now.
-    Arc::try_unwrap(uf).ok().expect("Failed to unwrap Arc").into_inner().unwrap()
 }
+
+pub fn _estimate_hashmap_size(map: &HashMap<String, HashSet<i32>>) -> usize {
+    let mut total_size = 0;
+    for (key, value) in map.iter() {
+        // Estimate size of String key
+        total_size += key.capacity() + std::mem::size_of::<String>();
+        
+        // Estimate size of HashSet<i32>
+        total_size += value.capacity() * std::mem::size_of::<i32>() + std::mem::size_of::<HashSet<i32>>();
+    }
+    // Add size of HashMap itself
+    total_size += std::mem::size_of::<HashMap<String, HashSet<i32>>>() + map.capacity() * std::mem::size_of::<*mut u8>();
+    total_size / 1024_i32.pow(2) as usize
+}
+
 /// Generates a vector of tuples representing hash ranges based on the provided parameters.
 ///
 ///

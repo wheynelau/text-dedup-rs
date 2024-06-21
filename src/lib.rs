@@ -3,11 +3,7 @@ use pyo3::{prelude::*, types::PyType};
 use std::collections::{HashMap,HashSet};
 use rayon::prelude::*;
 
-mod utils {
-    pub mod embed;
-    pub mod unionfind;
-    pub mod optimal;
-}
+pub mod utils;
 
 use crate::utils::{embed, unionfind, optimal};
 

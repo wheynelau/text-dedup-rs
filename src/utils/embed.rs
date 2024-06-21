@@ -1,11 +1,13 @@
 use lazy_static::lazy_static;
+use ndarray::ArcArray1;
 use std::collections::HashSet;
 use rand::{distributions::Uniform, Rng, SeedableRng};
 use regex::Regex;
 use byteorder::{ByteOrder, LittleEndian};
-use ndarray::ArcArray1;
 use base64::{Engine as _, engine::general_purpose};
 use sha3::{Digest, Sha3_256};
+
+use super::types::*;
 
 /// TODO: Remove hardcodes
 const D :u32 = 32;
@@ -16,6 +18,7 @@ const MIN_LENGTH:i32 = 5;
 lazy_static! {
     static ref RE:Regex = Regex::new(r"\W+").unwrap();
 }
+
 
 fn ngrams(sequence: Vec<&str>, n: i32, min_length: i32) -> Vec<Vec<&str>> {
     if sequence.len() < min_length as usize {
@@ -73,7 +76,7 @@ pub fn hash_tokens(tokens: HashSet<Vec<u8>>) -> Vec<u64> {
         .collect()
 }
 
-pub fn generate_permutations(module_prime: usize, num_perm:i32) -> (ArcArray1<u64>, ArcArray1<u64>) {
+pub fn generate_permutations(module_prime: usize, num_perm:i32) -> Permutations {
     let mut rng: rand::rngs::StdRng = SeedableRng::from_seed([42; 32]);
     let dist_a = Uniform::new(1, module_prime); // Range is [1, modulo_prime)
     let dist_b = Uniform::new(0, module_prime); // Range is [0, modulo_prime)
