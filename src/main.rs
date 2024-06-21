@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::env;
 
 pub mod utils;
 use crate::utils::prelude::*;
@@ -21,7 +22,12 @@ fn main() -> Result<(), Box<dyn Error>>{
 
     let permutations: Permutations= utils::embed::generate_permutations(MODULE_PRIME as usize, args.num_perm);
 
-    let reader = utils::parquet_utils::get_reader(100000, &args.parquet_path);
+    let batch_size = env::var("BATCH_SIZE")
+    .ok()
+    .and_then(|s| s.parse::<usize>().ok())
+    .unwrap_or(10000);
+
+    let reader = utils::parquet_utils::get_reader(batch_size, &args.parquet_path);
 
     if args.streaming {
         return dedup::streaming(args, reader, permutations, hash_ranges);
