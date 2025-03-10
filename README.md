@@ -37,11 +37,8 @@ Additionally, I have not setup wheels so only building from source is possible.
 ```bash
 # from the original repo
 # this assumes you have python, environment management is up to you
-curl https://sh.rustup.rs -sSf | sh 
-pip install . # editable mode
-cd dedup-rs
+curl https://sh.rustup.rs -sSf | sh # installing rust
 pip install .
-cd ..
 python tests/benchmark_core.py
 ```
 ### Docker
@@ -66,29 +63,8 @@ Benchmark results are in [BENCHMARKS](docs/BENCHMARKS.md)
 
 ## Issues
 
-1. One caveat I noticed was that rust didn't produce tuples with whitespaces, for example  ("a", "b" "c") instead of  
- (" ", "a", "b") which is what python produced. It may affect the results but I'm not sure.
-
-2. When testing on a larger dataset, the rust code removed significantly lesser data () than the python code.
-As the data was not labelled, it could be not be verified if the duplicates were removed correctly.
-
-3. Using par_iter for some portions of the rust code lead to small differences in the results. 
-
-For benchmark core:
-```
-# With par_iter on clustering and hashing
-| Algorithm     |   Precision (Duplicates) |   Recall (Duplicates) |   Precision (Non Duplicates) |   Recall (Non Duplicates) |   Macro F1 score |   Accuracy | Time   |
-| MinHashRust   |                   0.9565 |                0.9432 |                       0.9466 |                    0.9591 |           0.9513 |     0.9292 | 15.04s |
-| MinHashPureRS |                   0.9555 |                0.9431 |                       0.9466 |                    0.9582 |           0.9508 |     0.9293 | 6.86s  |
-
-# Without par_iter on clustering and hashing
-| MinHashRust   |                   0.9565 |                0.9432 |                       0.9466 |                    0.9591 |           0.9513 |     0.9292 | 15.04s |
-| MinHashPureRS |                   0.9565 |                0.9432 |                       0.9466 |                    0.9592 |           0.9513 |     0.9292 | 9.14s  |
-
-# On a larger dataset, the difference was more pronounced in the final len from 930460
-MinHashPureRS: 844493
-MinHashRust: 860760
-```
+1. Some minor differences in the scores, you can review in the benchmarks.
+2. Found out that the major difference previously was due to the u32 type
 
 For testing purposes, the parellelized version is kept. The original code is at this [point](https://github.com/wheynelau/text-dedup-rs/blob/b121d1431f657ea71034b07dc39ae3428f363dbd/src/dedup.rs)
 
@@ -98,3 +74,4 @@ For testing purposes, the parellelized version is kept. The original code is at 
 - [x] ~~End goal: Make it work with pyspark~~ Check out the [experimental-pyspark](https://github.com/wheynelau/text-dedup-rs/tree/experimental-pyspark) branch
 - [ ] Check for potential improvements
 - [ ] Write idiomatic rust code
+- [ ] Allow generics for u32,u64,u128
