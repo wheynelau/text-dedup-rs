@@ -18,36 +18,36 @@ Found that after fixing the u32 to u64, got better results
 
 ## Benchmark news
 
-MinHash ARI: 0.7228948156767026
-MinRust ARI: 0.7533973513900195
-MinHash Pure RS ARI: 0.7533973513900195
+MinHash ARI: 0.7228948156767026  
+MinRust ARI: 0.7533973513900195  
+MinHash Pure RS ARI: 0.7533973513900195  
 
 ## Benchmark RP
 
 This dataset has no validation, only used for throughput testing
 
-Rust from datasets
+Rust from datasets  
 
-INFO     Loading                         : 16.60s
-INFO     Fused embedding, sharding       : 83.78s
-INFO     Clustering                      : 0.39s
-INFO     Filtering                       : 4.88s
-INFO     Saving                          : 2.05s
-INFO     Cleaning                        : 0.13s
-INFO     Total                           : 107.84s
-INFO     Before                          : 930460
-INFO     After                           : 659598
-
-Original python
-
-INFO     Loading                         : 17.14s
-INFO     MinHashing                      : 129.99s
-INFO     Sharding                        : 80.11s 
-INFO     Clustering                      : 3.83s  
-INFO     Filtering                       : 4.60s  
-INFO     Saving                          : 1.87s  
-INFO     Cleaning                        : 0.17s   
-INFO     Total                           : 237.72s 
+INFO     Loading                         : 16.60s  
+INFO     Fused embedding, sharding       : 83.78s  
+INFO     Clustering                      : 0.39s  
+INFO     Filtering                       : 4.88s  
+INFO     Saving                          : 2.05s  
+INFO     Cleaning                        : 0.13s  
+INFO     Total                           : 107.84s  
 INFO     Before                          : 930460  
-INFO     After                           : 631281 
+INFO     After                           : 659598  
+
+Original python  
+
+INFO     Loading                         : 17.14s  
+INFO     MinHashing                      : 129.99s  
+INFO     Sharding                        : 80.11s   
+INFO     Clustering                      : 3.83s   
+INFO     Filtering                       : 4.60s   
+INFO     Saving                          : 1.87s   
+INFO     Cleaning                        : 0.17s     
+INFO     Total                           : 237.72s  
+INFO     Before                          : 930460   
+INFO     After                           : 631281  
 
