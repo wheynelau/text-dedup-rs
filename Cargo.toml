@@ -1,6 +1,6 @@
 [package]
 name = "dedup_rs"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 authors = ["Wayne Lau", ""]
 description = "A Rust library for deduplication of documents"
@@ -18,7 +18,7 @@ path = "src/dedup.rs"
 
 
 [dependencies]
-pyo3 = "0.21.2"
+pyo3 = "0.24.0"
 rand = { version = "0.8.4", features = ["small_rng"] }
 sha1 = "0.10.6"
 regex = "1.5.4"
@@ -34,3 +34,6 @@ parquet = { version = "52.0.0" }
 clap = { version = "4.5.7", features = ["derive"] }
 byteorder = "1.5.0"
 sha3 = "0.10.8"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
