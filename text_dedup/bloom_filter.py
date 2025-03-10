@@ -10,9 +10,12 @@ from pybloom_live import ScalableBloomFilter
 from tqdm import tqdm
 
 from text_dedup import logger
-from text_dedup.utils import BloomFilterArgs, IOArgs, MetaArgs
-from text_dedup.utils.hashfunc import (md5_digest, sha256_digest,
-                                       xxh3_128_digest)
+from text_dedup.utils import BloomFilterArgs
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
+from text_dedup.utils.hashfunc import md5_digest
+from text_dedup.utils.hashfunc import sha256_digest
+from text_dedup.utils.hashfunc import xxh3_128_digest
 from text_dedup.utils.load import load_hf_dataset
 from text_dedup.utils.memory import DisableReferenceCount
 from text_dedup.utils.timer import Timer

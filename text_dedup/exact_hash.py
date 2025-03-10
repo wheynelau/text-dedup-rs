@@ -9,9 +9,12 @@ import numpy as np
 from tqdm import tqdm
 
 from text_dedup import logger
-from text_dedup.utils import ExactHashArgs, IOArgs, MetaArgs
-from text_dedup.utils.hashfunc import (md5_hexdigest, sha256_hexdigest,
-                                       xxh3_128_digest)
+from text_dedup.utils import ExactHashArgs
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
+from text_dedup.utils.hashfunc import md5_hexdigest
+from text_dedup.utils.hashfunc import sha256_hexdigest
+from text_dedup.utils.hashfunc import xxh3_128_digest
 from text_dedup.utils.load import load_hf_dataset
 from text_dedup.utils.memory import DisableReferenceCount
 from text_dedup.utils.timer import Timer

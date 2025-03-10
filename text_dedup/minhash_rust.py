@@ -12,20 +12,18 @@ import click
 import datasets
 import numpy as np
 
-from text_dedup.dedup_rs import EmbedFunc
 from text_dedup import logger
-from text_dedup.utils import (
-    CLUSTER_COLUMN,
-    INDEX_COLUMN,
-    DisableReferenceCount,
-    IOArgs,
-    MetaArgs,
-    MinHashArgs,
-    Timer,
-    UnionFind,
-    load_hf_dataset,
-    optimal_param,
-)
+from text_dedup.dedup_rs import EmbedFunc
+from text_dedup.utils import CLUSTER_COLUMN
+from text_dedup.utils import INDEX_COLUMN
+from text_dedup.utils import DisableReferenceCount
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
+from text_dedup.utils import MinHashArgs
+from text_dedup.utils import Timer
+from text_dedup.utils import UnionFind
+from text_dedup.utils import load_hf_dataset
+from text_dedup.utils import optimal_param
 
 SEED = 42
 RNG = np.random.RandomState(SEED)
@@ -52,9 +50,7 @@ def main(
 
     if minhash_args.b is not None and minhash_args.r is not None:
         B, R = minhash_args.b, minhash_args.r
-        Emb = EmbedFunc.from_b_r(
-            B, R, minhash_args.ngram, minhash_args.num_perm, SIGNATURE_COLUMN, INDEX_COLUMN
-        )
+        Emb = EmbedFunc.from_b_r(B, R, minhash_args.ngram, minhash_args.num_perm, SIGNATURE_COLUMN, INDEX_COLUMN)
     else:
         # Compute the optimal `MinHashLSH` parameter that minimizes the weighted sum
         # of probabilities of false positive and false negative, taken from datasketch.
@@ -78,8 +74,7 @@ def main(
         with timer("Loading"):
             ds, id2id = load_hf_dataset(io_args=io_args, meta_args=meta_args)
             ds = ds.filter(
-                lambda x: len(NON_ALPHA.split(x[meta_args.column].lower()))
-                >= minhash_args.min_length,
+                lambda x: len(NON_ALPHA.split(x[meta_args.column].lower())) >= minhash_args.min_length,
                 num_proc=io_args.num_proc,
             )
 

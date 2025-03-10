@@ -5,7 +5,9 @@ from contextlib import redirect_stdout
 import click
 
 from text_dedup.bloom_filter import main as bf_main
-from text_dedup.utils import BloomFilterArgs, IOArgs, MetaArgs
+from text_dedup.utils import BloomFilterArgs
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
 
 
 def test_bloom_filter():
@@ -26,9 +28,7 @@ def test_bloom_filter():
     s = f.getvalue()
     # check the output
     print(f"Output:\n{s}")
-    assert (
-        "69048" in s and "69048" in s
-    ), f"Expected before and after are not present in the output: {s}"
+    assert "69048" in s and "69048" in s, f"Expected before and after are not present in the output: {s}"
 
     # remove the output and input
     # subprocess.run(["rm", "-rf", ".cache"])  # nosec

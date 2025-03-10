@@ -1,9 +1,13 @@
 import hashlib
 import struct
-from hashlib import md5, sha256
+from hashlib import md5
+from hashlib import sha256
 
 import xxhash
-from xxhash import xxh3_64, xxh3_64_digest, xxh3_128, xxh3_128_digest
+from xxhash import xxh3_64
+from xxhash import xxh3_64_digest
+from xxhash import xxh3_128
+from xxhash import xxh3_128_digest
 
 
 def md5_digest(data: bytes) -> bytes:
@@ -81,17 +85,11 @@ def sha1_hash(data: bytes, d: int = 32) -> int:
     310522945683037930239412421226792791594
     """
     if d == 32:
-        return struct.unpack(
-            "<I", hashlib.sha1(data, usedforsecurity=False).digest()[:4]
-        )[0]
+        return struct.unpack("<I", hashlib.sha1(data, usedforsecurity=False).digest()[:4])[0]
     if d == 64:
-        return struct.unpack(
-            "<Q", hashlib.sha1(data, usedforsecurity=False).digest()[:8]
-        )[0]
+        return struct.unpack("<Q", hashlib.sha1(data, usedforsecurity=False).digest()[:8])[0]
     # struct is faster but does not support arbitrary bit lengths
-    return int.from_bytes(
-        hashlib.sha1(data, usedforsecurity=False).digest()[: d // 8], byteorder="little"
-    )
+    return int.from_bytes(hashlib.sha1(data, usedforsecurity=False).digest()[: d // 8], byteorder="little")
 
 
 def sha256_digest(data: bytes) -> bytes:

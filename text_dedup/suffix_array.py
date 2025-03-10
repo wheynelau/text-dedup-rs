@@ -7,14 +7,20 @@ import random
 import shutil
 import subprocess  # nosec
 from collections import deque
-from pathlib import Path, PosixPath
-from typing import Deque, Generator, Literal, Sequence
+from pathlib import Path
+from pathlib import PosixPath
+from typing import Deque
+from typing import Generator
+from typing import Literal
+from typing import Sequence
 
 import click
 import datasets
 
 from text_dedup import logger
-from text_dedup.utils import IOArgs, MetaArgs, SAArgs
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
+from text_dedup.utils import SAArgs
 from text_dedup.utils.load import load_hf_dataset
 from text_dedup.utils.timer import Timer
 

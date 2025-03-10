@@ -2,12 +2,15 @@ import os
 
 import click
 import datasets
+
 from text_dedup import logger
 from text_dedup.minhash import main as minhash_main
-from text_dedup.minhash_rust import main as minhash_rust_main
 from text_dedup.minhash_pure_rs import main as minhash_pure_rs_main
-from text_dedup.utils import (IOArgs, MetaArgs, MinHashArgs,
-                              Timer)
+from text_dedup.minhash_rust import main as minhash_rust_main
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
+from text_dedup.utils import MinHashArgs
+from text_dedup.utils import Timer
 
 NUM_PROC = os.cpu_count()
 DATASET = "togethercomputer/RedPajama-Data-1T-Sample"
@@ -15,34 +18,25 @@ PARQUET_PATH = "temp_files/temp_inp_paruqet/data.parquet"
 if __name__ == "__main__":
     t = Timer()
 
-    if not os.environ.get('HF_DATASETS_CACHE'):
+    if not os.environ.get("HF_DATASETS_CACHE"):
         logger.info("`HF_DATASETS_CACHE` not set, default location is `$HOME/.cache/huggingface/datasets`")
 
     table = []
-    ds = ( 
-            datasets.load_dataset(
-            DATASET,
-            split="train",
-            num_proc=NUM_PROC,
-        )
-        .map(
-            lambda _,i: {
-                "id": i
-            },
-            num_proc=NUM_PROC,
-            with_indices=True,
-            )
-        )   
+    ds = datasets.load_dataset(
+        DATASET,
+        split="train",
+        num_proc=NUM_PROC,
+    ).map(
+        lambda _, i: {"id": i},
+        num_proc=NUM_PROC,
+        with_indices=True,
+    )
     logger.info("Saving dataset to disk")
     ds.save_to_disk("temp_files/temp_inp_ds")
 
     logger.info("Saving dataset to parquet")
     os.makedirs("temp_files/temp_inp_paruqet", exist_ok=True)
-    (
-        ds
-        .to_pandas()
-        .to_parquet(PARQUET_PATH)
-    )
+    (ds.to_pandas().to_parquet(PARQUET_PATH))
     logger.warning("This benchmark has no validation, and is purely for memory and speed benchmarking.")
 
     io_args = IOArgs(
@@ -64,7 +58,7 @@ if __name__ == "__main__":
             io_args=io_args,
             meta_args=meta_args,
             minhash_args=minhash_args,
-            parquet_path = PARQUET_PATH
+            parquet_path=PARQUET_PATH,
         )
 
     with t("MinRust"):
