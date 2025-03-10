@@ -167,3 +167,5 @@ output
 target/
 temp_files/
 *.ipynb
+
+Cargo.lock
