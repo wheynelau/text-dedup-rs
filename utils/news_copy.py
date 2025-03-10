@@ -46,12 +46,8 @@ def preprocess_csv(file, path, split):
 
 
 if __name__ == "__main__":
-    test = preprocess_split(
-        "./data/test_sets.zip", "test_inf_data.json", "full_test_gt.json"
-    )
-    val = preprocess_split(
-        "./data/evaluation_set.zip", "1955_inf_data.json", "1955_gt.json"
-    )
+    test = preprocess_split("./data/test_sets.zip", "test_inf_data.json", "full_test_gt.json")
+    val = preprocess_split("./data/evaluation_set.zip", "1955_inf_data.json", "1955_gt.json")
     # train = preprocess_split("./data/training_set.zip", "1948_inf_data.json", "1948_gt.json")
     train = preprocess_csv(
         "./data/training_sets.zip",
@@ -64,9 +60,5 @@ if __name__ == "__main__":
         split="dev",
     )
 
-    datasets.DatasetDict({"train": train, "dev": dev}).push_to_hub(
-        "chenghao/NEWS-COPY-train"
-    )
-    datasets.DatasetDict({"test": test, "val": val}).push_to_hub(
-        "chenghao/NEWS-COPY-eval"
-    )
+    datasets.DatasetDict({"train": train, "dev": dev}).push_to_hub("chenghao/NEWS-COPY-train")
+    datasets.DatasetDict({"test": test, "val": val}).push_to_hub("chenghao/NEWS-COPY-eval")

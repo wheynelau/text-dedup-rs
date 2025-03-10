@@ -7,16 +7,18 @@ import datasets
 import pandas as pd
 from sklearn.metrics import adjusted_rand_score
 
+from text_dedup.dedup_rs import UnionFind as UnionFindRS
 from text_dedup.minhash import main as minhash_main
-from text_dedup.minhash_rust import main as minhash_rust_main
 from text_dedup.minhash_pure_rs import main as minhash_pure_rs_main
-from text_dedup.utils import (IOArgs, MetaArgs, MinHashArgs, SimHashArgs,
-                              UniSimArgs)
+from text_dedup.minhash_rust import main as minhash_rust_main
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
+from text_dedup.utils import MinHashArgs
+from text_dedup.utils import SimHashArgs
+from text_dedup.utils import UniSimArgs
 from text_dedup.utils.preprocess import news_copy_preprocessing
 from text_dedup.utils.timer import Timer
 from text_dedup.utils.union_find import UnionFind
-
-from text_dedup.dedup_rs import UnionFind as UnionFindRS
 
 NUM_PROC = os.cpu_count()
 
@@ -37,7 +39,7 @@ def uf2results(labels, path):
     try:
         with open(path, "rb") as f:
             uf = pickle.load(f)  # nosec
-    except: # noqa
+    except:  # noqa
         uf = UnionFindRS.load(path)
 
     predictions = [uf.find(i) for i in range(len(labels))]
@@ -96,7 +98,7 @@ if __name__ == "__main__":
             meta_args=meta_args,
             minhash_args=minhash_args,
         )
-    
+
     with t("MinHash Pure RS"):
         ctx = click.Context(minhash_pure_rs_main)
         io_args.output = minhash_output_rs = "./temp_files/temp_output_minhash_rs"
@@ -105,7 +107,7 @@ if __name__ == "__main__":
             io_args=io_args,
             meta_args=meta_args,
             minhash_args=minhash_args,
-            parquet_path = os.path.join(output_path_spark,"data.parquet")
+            parquet_path=os.path.join(output_path_spark, "data.parquet"),
         )
 
     # with t("MinHash Spark"):

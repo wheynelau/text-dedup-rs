@@ -27,9 +27,9 @@ def test_minhash():
     )  # nosec
 
     # check the output
-    assert (
-        "817" in result.stdout and "788" in result.stdout
-    ), f"Expected before and after are not present in the output: {result.stdout}"
+    assert "817" in result.stdout and "788" in result.stdout, (
+        f"Expected before and after are not present in the output: {result.stdout}"
+    )
 
     # remove the output and input
     # subprocess.run(["rm", "-rf", ".cache"])  # nosec

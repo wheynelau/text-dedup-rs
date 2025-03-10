@@ -9,19 +9,29 @@ import os
 import random
 from collections import defaultdict
 from itertools import permutations
-from typing import Any, Callable
+from typing import Any
+from typing import Callable
 
 import click
 import datasets
 import numpy as np
-from bitarray import bitarray, frozenbitarray
+from bitarray import bitarray
+from bitarray import frozenbitarray
 from tqdm import tqdm
 
 from text_dedup import logger
-from text_dedup.utils import (CLUSTER_COLUMN, INDEX_COLUMN,
-                              DisableReferenceCount, IOArgs, MetaArgs,
-                              SimHashArgs, Timer, UnionFind, load_hf_dataset,
-                              ngrams, xxh3_64_digest, xxh3_128_digest)
+from text_dedup.utils import CLUSTER_COLUMN
+from text_dedup.utils import INDEX_COLUMN
+from text_dedup.utils import DisableReferenceCount
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
+from text_dedup.utils import SimHashArgs
+from text_dedup.utils import Timer
+from text_dedup.utils import UnionFind
+from text_dedup.utils import load_hf_dataset
+from text_dedup.utils import ngrams
+from text_dedup.utils import xxh3_64_digest
+from text_dedup.utils import xxh3_128_digest
 
 mp.set_start_method("fork", force=True)
 datasets.logging.set_verbosity_error()
@@ -57,9 +67,7 @@ def _hamming_distance(a: bitarray, b: bitarray) -> int:
 
 
 class Permutation:
-    def __init__(
-        self, f: int, k: int, b: int, masks: list[tuple[bitarray, int, int, int]]
-    ) -> None:
+    def __init__(self, f: int, k: int, b: int, masks: list[tuple[bitarray, int, int, int]]) -> None:
         """
         A permutation object for bit manipulation.
 
@@ -97,9 +105,9 @@ class Permutation:
 
             self.masks.append(mask)
 
-        assert (
-            sum(self.widths) == f
-        ), f"The sum of block widths {sum(self.widths)} must be equal to the fingerprint size {f}"
+        assert sum(self.widths) == f, (
+            f"The sum of block widths {sum(self.widths)} must be equal to the fingerprint size {f}"
+        )
 
         prefix_width = sum(self.widths[: b - k])
         self.search_mask: bitarray = bitarray(f)
@@ -198,9 +206,9 @@ def _create_permutations(f: int, k: int, b: int) -> list[Permutation]:
             y = (f - x * max_block_size) // min_block_size
             break
 
-    assert (
-        x * max_block_size + y * min_block_size == f
-    ), f"{x=} w/ {max_block_size}, {y=} w/ {min_block_size} are invalid"
+    assert x * max_block_size + y * min_block_size == f, (
+        f"{x=} w/ {max_block_size}, {y=} w/ {min_block_size} are invalid"
+    )
 
     start = end = 0
 
@@ -328,9 +336,7 @@ def embed_func(
     >>> len(res[SIGNATURE_COLUMN])
     8
     """
-    tokens = {
-        bytes("".join(ng).lower(), "utf-8") for ng in ngrams(list(content), n=ngram)
-    }
+    tokens = {bytes("".join(ng).lower(), "utf-8") for ng in ngrams(list(content), n=ngram)}
     sig = compute([_unsigned_hash(t, hash_func) for t in tokens])
     keys: list[tuple[bytes, bytes]] = []
     if permutations:
@@ -356,15 +362,11 @@ def main(
     global uf
     uf.reset()
     timer = Timer()
-    PERMUTATIONS = _create_permutations(
-        simhash_args.f, k=simhash_args.bit_diff, b=simhash_args.num_bucket
-    )
+    PERMUTATIONS = _create_permutations(simhash_args.f, k=simhash_args.bit_diff, b=simhash_args.num_bucket)
     BUCKETS: dict[Any, list] = defaultdict(list)
 
     # current code only supports 64 or 128 bit simhash sizes
-    hash_func = {64: xxh3_64_digest, 128: xxh3_128_digest}.get(
-        simhash_args.f, xxh3_64_digest
-    )
+    hash_func = {64: xxh3_64_digest, 128: xxh3_128_digest}.get(simhash_args.f, xxh3_64_digest)
 
     with timer("Total"):
         with timer("Loading"):
@@ -426,10 +428,7 @@ def main(
                         for idy, other_fingerprint in BUCKETS[key]:
                             if idy in neighbors:
                                 continue
-                            if (
-                                _hamming_distance(sig, other_fingerprint)
-                                <= simhash_args.bit_diff
-                            ):
+                            if _hamming_distance(sig, other_fingerprint) <= simhash_args.bit_diff:
                                 uf.union(idx, idy)
                                 neighbors.add(idy)
                         BUCKETS[key].append((idx, sig))

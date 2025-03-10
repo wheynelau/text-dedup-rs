@@ -1,6 +1,6 @@
+import json
 import os
 import pickle  # nosec
-import json
 import subprocess  # nosec
 import sys
 from collections import defaultdict
@@ -8,15 +8,21 @@ from collections import defaultdict
 import click
 import datasets
 import pandas as pd
-from datasets import Features, Sequence, Value
-
-from text_dedup.minhash import main as minhash_main
-from text_dedup.minhash_rust import main as minhash_rust_main
-from text_dedup.minhash_pure_rs import main as minhash_pure_rs_main
-from text_dedup.utils import (IOArgs, MetaArgs, MinHashArgs, SimHashArgs,
-                              Timer, UnionFind, UniSimArgs)
+from datasets import Features
+from datasets import Sequence
+from datasets import Value
 
 from text_dedup.dedup_rs import UnionFind as UnionFindRS
+from text_dedup.minhash import main as minhash_main
+from text_dedup.minhash_pure_rs import main as minhash_pure_rs_main
+from text_dedup.minhash_rust import main as minhash_rust_main
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
+from text_dedup.utils import MinHashArgs
+from text_dedup.utils import SimHashArgs
+from text_dedup.utils import Timer
+from text_dedup.utils import UnionFind
+from text_dedup.utils import UniSimArgs
 
 NUM_PROC = os.cpu_count()
 
@@ -40,23 +46,18 @@ def _precision(row):
 
 
 def uf2results(path: str, name: str, time: float):
-
     id2cluster = defaultdict(set)
     try:
         with open(path, "rb") as f:
             uf = pickle.load(f)  # nosec
-    except: # noqa
+    except:  # noqa
         uf = UnionFindRS.load(path)
-    
+
     for idx, cluster in uf.parent.items():
         id2cluster[cluster].add(idx)
 
     predictions = {
-        id2core_id[x["id"]]: {
-            id2core_id[neighbor]
-            for neighbor in id2cluster[uf.find(x["id"])]
-            if neighbor != x["id"]
-        }
+        id2core_id[x["id"]]: {id2core_id[neighbor] for neighbor in id2cluster[uf.find(x["id"])] if neighbor != x["id"]}
         for x in truth
     }
     df = (
@@ -65,16 +66,12 @@ def uf2results(path: str, name: str, time: float):
         .reset_index()
         .merge(pd.Series(predictions).to_frame("predictions").reset_index(), on="index")
     )
-    df["Correct"] = df.apply(
-        lambda row: set(row["duplicates"]) == set(row["predictions"]), axis=1
-    ).astype(int)
+    df["Correct"] = df.apply(lambda row: set(row["duplicates"]) == set(row["predictions"]), axis=1).astype(int)
     prediction_summary = {
         "Correct": df["Correct"].sum(),
         "Incorrect": df.shape[0] - df["Correct"].sum(),
     }
-    prediction_summary["Accuracy"] = round(
-        prediction_summary["Correct"] / df.shape[0], 4
-    )
+    prediction_summary["Accuracy"] = round(prediction_summary["Correct"] / df.shape[0], 4)
     recalls = df.apply(_recall, axis=1)
     prediction_summary["Recall"] = round(recalls.mean(), 4)
     precisions = df.apply(_precision, axis=1)
@@ -134,9 +131,7 @@ def classify_in_paper(record):
         if LEN_DUPLICATES == 0 or not duplicates.issubset(predictions):
             return "FP"
 
-    raise ValueError(
-        f"This should not happen {duplicates} {predictions} {len(duplicates)=} {len(predictions)=}"
-    )
+    raise ValueError(f"This should not happen {duplicates} {predictions} {len(duplicates)=} {len(predictions)=}")
 
 
 def inverse(label: str) -> str:
@@ -164,13 +159,7 @@ def exact_title_results(ds, name: str):
         title2core_ids[title].add(core_id)
 
     matches = ds.map(
-        lambda row: {
-            "matches": {
-                x
-                for x in title2core_ids[row["processed_title"]]
-                if x != int(row["core_id"])
-            }
-        }
+        lambda row: {"matches": {x for x in title2core_ids[row["processed_title"]] if x != int(row["core_id"])}}
     )
     matches = {int(x["core_id"]): x["matches"] for x in matches}
     ddf = (
@@ -179,9 +168,7 @@ def exact_title_results(ds, name: str):
         .reset_index()
         .merge(pd.Series(labels).to_frame("duplicates").reset_index(), on="index")
     )
-    ddf["Correct"] = ddf.apply(
-        lambda row: set(row["duplicates"]) == set(row["predictions"]), axis=1
-    ).astype(int)
+    ddf["Correct"] = ddf.apply(lambda row: set(row["duplicates"]) == set(row["predictions"]), axis=1).astype(int)
     ddf["Class"] = ddf.apply(lambda row: classify_in_paper(row), axis=1)
     ddf["Class_"] = ddf.apply(lambda row: inverse(row["Class"]), axis=1)
 
@@ -224,11 +211,7 @@ if __name__ == "__main__":
             num_proc=NUM_PROC,
         )
         .map(
-            lambda x: {
-                "text": " ".join(
-                    (x["processed_title"], x["processed_abstract"])
-                ).lower()
-            },
+            lambda x: {"text": " ".join((x["processed_title"], x["processed_abstract"])).lower()},
             num_proc=NUM_PROC,
         )
         .save_to_disk("temp_files/temp_inp_ds")
@@ -244,9 +227,7 @@ if __name__ == "__main__":
         )
         .map(
             lambda x, i: {
-                "text": " ".join(
-                    (x["processed_title"], x["processed_abstract"])
-                ).lower(),
+                "text": " ".join((x["processed_title"], x["processed_abstract"])).lower(),
                 "id": i,
             },
             num_proc=NUM_PROC,
@@ -265,7 +246,7 @@ if __name__ == "__main__":
         },
         remove_columns=ds.column_names,
         with_indices=True,
-        num_proc=NUM_PROC,  
+        num_proc=NUM_PROC,
         features=Features(
             {
                 "core_id": Value("string"),
@@ -275,10 +256,7 @@ if __name__ == "__main__":
         ),
     )
     id2core_id = {x["id"]: int(x["core_id"]) for x in truth}
-    labels = {
-        int(x["core_id"]): set(map(int, x["duplicates"])) if x["duplicates"] else set()
-        for x in truth
-    }
+    labels = {int(x["core_id"]): set(map(int, x["duplicates"])) if x["duplicates"] else set() for x in truth}
 
     io_args = IOArgs(
         path="./temp_files/temp_inp_ds",
@@ -321,17 +299,13 @@ if __name__ == "__main__":
             io_args=io_args,
             meta_args=meta_args,
             minhash_args=minhash_args,
-            parquet_path="temp_files/temp_inp_paruqet/data.parquet"
+            parquet_path="temp_files/temp_inp_paruqet/data.parquet",
         )
 
     try:
         uf2results(f"{minhash_output}/uf.pkl", "MinHash", t.elapsed_times.get("MinHash"))
-        uf2results(
-            f"{minhash_output_rust}/uf.json", "MinHashRust", t.elapsed_times.get("MinRust")
-        )
-        uf2results(
-            f"{minhash_output_rs}/uf.json", "MinHashPureRS", t.elapsed_times.get("MinHash Pure RS")
-        )
+        uf2results(f"{minhash_output_rust}/uf.json", "MinHashRust", t.elapsed_times.get("MinRust"))
+        uf2results(f"{minhash_output_rs}/uf.json", "MinHashPureRS", t.elapsed_times.get("MinHash Pure RS"))
     except FileNotFoundError:
         print(f"Unable to find uf.pkl in {minhash_output} or {minhash_output_rust}")
 

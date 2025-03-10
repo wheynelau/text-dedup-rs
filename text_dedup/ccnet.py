@@ -5,18 +5,28 @@
 # @Reference    : https://github.com/facebookresearch/cc_net/blob/main/cc_net/dedup.py
 
 import multiprocessing as mp
-from typing import Any, Callable, Dict, List
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
 
 import click
 import numpy as np
 from tqdm import tqdm
 
 from text_dedup import logger
-from text_dedup.utils import (INDEX_COLUMN, DisableReferenceCount,
-                              ExactHashArgs, IOArgs, MetaArgs, Timer,
-                              load_hf_dataset, md5_digest)
+from text_dedup.utils import INDEX_COLUMN
+from text_dedup.utils import DisableReferenceCount
+from text_dedup.utils import ExactHashArgs
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
+from text_dedup.utils import Timer
+from text_dedup.utils import load_hf_dataset
+from text_dedup.utils import md5_digest
 from text_dedup.utils import normalize as normalize_for_dedup
-from text_dedup.utils import sha256_digest, xxh3_64_digest, xxh3_128_digest
+from text_dedup.utils import sha256_digest
+from text_dedup.utils import xxh3_64_digest
+from text_dedup.utils import xxh3_128_digest
 
 HASH_SIZE = np.uint64(0).nbytes  # 8 bytes
 mp.set_start_method("fork", force=True)
@@ -55,9 +65,7 @@ def compute_hashes(
     lines = batch[column][0].split("\n")
     idx = idx[0] if idx is not None else batch[idx_column][0]
     n = len(lines)
-    hashes = [
-        hash_func(bytes(normalize_for_dedup(line), encoding="utf-8")) for line in lines
-    ]
+    hashes = [hash_func(bytes(normalize_for_dedup(line), encoding="utf-8")) for line in lines]
     return {
         HASH_COLUMN: hashes,
         ID_COLUMN: [idx for _ in range(n)],

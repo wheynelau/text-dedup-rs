@@ -1,17 +1,23 @@
 import os
 import pickle  # nosec
 from collections import defaultdict
-from contextlib import contextmanager, redirect_stderr, redirect_stdout
+from contextlib import contextmanager
+from contextlib import redirect_stderr
+from contextlib import redirect_stdout
 from os import devnull
 
 import click
 import datasets
 import pandas as pd
-from datasets import Features, Sequence, Value
+from datasets import Features
+from datasets import Sequence
+from datasets import Value
 from tqdm import tqdm
 
 from text_dedup.simhash import main as simhash_main
-from text_dedup.utils import IOArgs, MetaArgs, SimHashArgs
+from text_dedup.utils import IOArgs
+from text_dedup.utils import MetaArgs
+from text_dedup.utils import SimHashArgs
 from text_dedup.utils.timer import Timer
 
 NUM_PROC = os.cpu_count()
@@ -52,11 +58,7 @@ def uf2results(path: str, name: str, time: float):
         id2cluster[cluster].add(idx)
 
     predictions = {
-        id2core_id[x["id"]]: {
-            id2core_id[neighbor]
-            for neighbor in id2cluster[uf.find(x["id"])]
-            if neighbor != x["id"]
-        }
+        id2core_id[x["id"]]: {id2core_id[neighbor] for neighbor in id2cluster[uf.find(x["id"])] if neighbor != x["id"]}
         for x in truth
     }
     df = (
@@ -65,16 +67,12 @@ def uf2results(path: str, name: str, time: float):
         .reset_index()
         .merge(pd.Series(predictions).to_frame("predictions").reset_index(), on="index")
     )
-    df["Correct"] = df.apply(
-        lambda row: set(row["duplicates"]) == set(row["predictions"]), axis=1
-    ).astype(int)
+    df["Correct"] = df.apply(lambda row: set(row["duplicates"]) == set(row["predictions"]), axis=1).astype(int)
     prediction_summary = {
         "Correct": df["Correct"].sum(),
         "Incorrect": df.shape[0] - df["Correct"].sum(),
     }
-    prediction_summary["Accuracy"] = round(
-        prediction_summary["Correct"] / df.shape[0], 4
-    )
+    prediction_summary["Accuracy"] = round(prediction_summary["Correct"] / df.shape[0], 4)
     recalls = df.apply(_recall, axis=1)
     prediction_summary["Recall"] = round(recalls.mean(), 4)
     precisions = df.apply(_precision, axis=1)
@@ -154,11 +152,7 @@ if __name__ == "__main__":
             num_proc=NUM_PROC,
         )
         .map(
-            lambda x: {
-                "text": " ".join(
-                    (x["processed_title"], x["processed_abstract"])
-                ).lower()
-            },
+            lambda x: {"text": " ".join((x["processed_title"], x["processed_abstract"])).lower()},
             num_proc=NUM_PROC,
         )
         .save_to_disk("temp_inp_ds")
@@ -182,10 +176,7 @@ if __name__ == "__main__":
         ),
     )
     id2core_id = {x["id"]: int(x["core_id"]) for x in truth}
-    labels = {
-        int(x["core_id"]): set(map(int, x["duplicates"])) if x["duplicates"] else set()
-        for x in truth
-    }
+    labels = {int(x["core_id"]): set(map(int, x["duplicates"])) if x["duplicates"] else set() for x in truth}
 
     io_args = IOArgs(
         path="./temp_inp_ds",
@@ -213,9 +204,7 @@ if __name__ == "__main__":
                     simhash_args=simhash_args,
                 )
 
-            metrics = uf2results(
-                f"{simhash_output}/uf.pkl", "SimHash", t.elapsed_times.get("SimHash")
-            )
+            metrics = uf2results(f"{simhash_output}/uf.pkl", "SimHash", t.elapsed_times.get("SimHash"))
             metrics["bit_diff"] = bd
             metrics["ngram"] = ng
             results.append(metrics)
