@@ -19,7 +19,7 @@ struct EmbedFunc {
     hash_tables: Vec<HashMap<Vec<u8>, HashSet<u32>>>,
     #[pyo3(get)]
     edges: Vec<(u32, u32)>,
-    permutations: (ArcArray1<u32>, ArcArray1<u32>),
+    permutations: (ArcArray1<u64>, ArcArray1<u64>),
 }
 #[derive(IntoPyObject, IntoPyObjectRef)]
 enum Sig {
