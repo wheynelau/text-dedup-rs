@@ -162,12 +162,8 @@ fn main() {
         .par_iter()
         .zip(indices.par_iter())
         .map(|(text, idx)| {
-            let hs: Vec<Bytes> = embed::py_embed_func(
-                text,
-                args.n_grams,
-                permutations.clone(),
-                hash_ranges.clone(),
-            );
+            let hs: Vec<Bytes> =
+                embed::py_embed_func(text, args.n_grams, &permutations, &hash_ranges);
             (hs, *idx)
         })
         .collect();

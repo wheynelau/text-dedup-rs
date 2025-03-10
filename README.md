@@ -75,3 +75,7 @@ For testing purposes, the parellelized version is kept. The original code is at 
 - [ ] Check for potential improvements
 - [ ] Write idiomatic rust code
 - [ ] Allow generics for u32,u64,u128
+- [ ] Move to numpy crate
+- [ ] Implement test for u64
+- [ ] Try to get a closer match on the benchmark scores
+- 

@@ -138,12 +138,8 @@ impl EmbedFunc {
     /// Not in use unless its for single line
     ///
     fn embed_func(&self, text: &str, idx: u32) -> HashMap<String, Sig> {
-        let hs: Vec<Vec<u8>> = embed::py_embed_func(
-            text,
-            self.n_grams,
-            self.permutations.clone(),
-            self.hash_values.to_vec(),
-        );
+        let hs: Vec<Vec<u8>> =
+            embed::py_embed_func(text, self.n_grams, &self.permutations, &self.hash_values);
 
         let mut map = HashMap::new();
         map.insert(self.main_col.to_string(), Sig::Signature(hs));
@@ -175,12 +171,8 @@ impl EmbedFunc {
             .par_iter()
             .zip(idx.par_iter())
             .map(|(s, &i)| {
-                let mapped = embed::py_embed_func(
-                    s,
-                    self.n_grams,
-                    self.permutations.clone(),
-                    self.hash_values.to_vec(),
-                );
+                let mapped =
+                    embed::py_embed_func(s, self.n_grams, &self.permutations, &self.hash_values);
                 (mapped, i)
             })
             .collect();

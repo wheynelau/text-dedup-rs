@@ -1,7 +1,7 @@
 use byteorder::{ByteOrder, LittleEndian};
 use lazy_static::lazy_static;
 use ndarray::ArcArray1;
-use rand::{distributions::Uniform, Rng, SeedableRng};
+use rand::{distr::Uniform, Rng, SeedableRng};
 use regex::Regex;
 use sha1::Sha1;
 use sha3::{Digest, Sha3_256};
@@ -9,7 +9,7 @@ use std::collections::HashSet;
 
 /// TODO: Remove hardcodes
 const D: u32 = 32;
-const MODULE_PRIME: u64 = (u32::MAX - 4) as u64;
+const MODULE_PRIME: u64 = (1u64 << 61) - 1;
 const MAX_HASH: u64 = (u32::MAX) as u64;
 const MIN_LENGTH: u32 = 5;
 
@@ -92,8 +92,8 @@ pub fn generate_permutations(
     num_perm: u32,
 ) -> (ArcArray1<u64>, ArcArray1<u64>) {
     let mut rng: rand::rngs::StdRng = SeedableRng::from_seed([42; 32]);
-    let dist_a = Uniform::new(1, module_prime); // Range is [1, modulo_prime)
-    let dist_b = Uniform::new(0, module_prime); // Range is [0, modulo_prime)
+    let dist_a = Uniform::try_from(1..module_prime).expect("Distribution failed?"); // Range is [1, modulo_prime)
+    let dist_b = Uniform::try_from(0..module_prime).expect("Distribution failed?"); // Range is [0, modulo_prime)
 
     let a: ArcArray1<u64> = (0..num_perm)
         .map(|_| rng.sample(dist_a) as u64)
@@ -222,8 +222,8 @@ fn swap_bytes(hashvalues: &[u64], hash_ranges: &[(u32, u32)]) -> Vec<Vec<u8>> {
 pub fn py_embed_func(
     text: &str,
     n_grams: u32,
-    permutations: (ArcArray1<u64>, ArcArray1<u64>),
-    hash_ranges: Vec<(u32, u32)>,
+    permutations: &(ArcArray1<u64>, ArcArray1<u64>),
+    hash_ranges: &[(u32, u32)],
 ) -> Vec<Vec<u8>> {
     let (a, b) = permutations;
 
@@ -231,9 +231,9 @@ pub fn py_embed_func(
 
     let hashes: Vec<u64> = hash_tokens(tokens);
 
-    let hashvalues = min_hash_fused(&hashes, &a, &b, MODULE_PRIME, MAX_HASH);
+    let hashvalues = min_hash_fused(&hashes, a, b, MODULE_PRIME, MAX_HASH);
 
-    swap_bytes(&hashvalues, &hash_ranges)
+    swap_bytes(&hashvalues, hash_ranges)
 }
 // TESTS ARE BROKEN
 // More info: u32 was testing to be precise
@@ -252,7 +252,7 @@ mod tests {
         let hash_ranges: Vec<(u32, u32)> = (0..b).map(|i| (i * r, (i + 1) * r)).collect();
         let n = 2;
         let text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
-        py_embed_func(text, n, permutations, hash_ranges);
+        py_embed_func(text, n, &permutations, &hash_ranges);
     }
     #[test]
     fn test_split_text() {
