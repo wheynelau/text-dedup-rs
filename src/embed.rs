@@ -29,6 +29,7 @@ fn ngrams(sequence: Vec<String>, n: u32, min_length: u32) -> Vec<Vec<String>> {
         .map(|window| window.to_vec())
         .collect()
 }
+
 #[allow(dead_code)]
 fn sha1_hash(data: &[u8]) -> u32 {
     let mut hasher = Sha1::new();
@@ -83,7 +84,7 @@ fn tokenize(text: &str, n: u32, min_length: u32) -> HashSet<Vec<u8>> {
 
     tokens
 }
-pub fn hash_tokens(tokens: HashSet<Vec<u8>>) -> Vec<u64> {
+fn hash_tokens(tokens: HashSet<Vec<u8>>) -> Vec<u64> {
     tokens.iter().map(|token| sha1_hash(token) as u64).collect()
 }
 
@@ -200,24 +201,6 @@ fn swap_bytes(hashvalues: &[u64], hash_ranges: &[(u32, u32)]) -> Vec<Vec<u8>> {
         })
         .collect()
 }
-// fn swap_bytes(hashvalues: &[u32],hash_ranges: &[(u32, u32)]) -> Vec<String> {
-// hash_ranges
-//     .iter()
-//     .map(|(start, end)| {
-//         let start = *start as usize;
-//         let end = *end as usize;
-//         if start >= hashvalues.len() {
-//             return Vec::new();
-//         }
-//         let actual_end = std::cmp::min(end, hashvalues.len());
-//         let inner_vec: Vec<u8> = hashvalues[start..actual_end]
-//             .iter()
-//             .flat_map(|&x| x.swap_bytes().to_le_bytes().to_vec())
-//             .collect();
-//         general_purpose::STANDARD.encode(&inner_vec)
-//     })
-//     .collect()
-// }
 
 pub fn py_embed_func(
     text: &str,

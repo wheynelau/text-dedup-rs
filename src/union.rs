@@ -48,30 +48,34 @@ impl UnionFind {
     }
 
     pub fn union(&mut self, x: usize, y: usize) {
-        let root_x = self.find(x);
-        let root_y = self.find(y);
-
-        if root_x != root_y {
-            let rank_x = *self.rank.entry(root_x).or_insert(0);
-            let rank_y = *self.rank.entry(root_y).or_insert(0);
-
-            match rank_x.cmp(&rank_y) {
-                Ordering::Greater => {
-                    // If rank_x is greater than rank_y, make root_x the parent of root_y
-                    self.parent.insert(root_y, root_x);
-                }
-                Ordering::Less => {
-                    // If rank_x is less than rank_y, make root_y the parent of root_x
-                    self.parent.insert(root_x, root_y);
-                }
-                Ordering::Equal => {
-                    // If ranks are equal, make root_x the parent of root_y and increment the rank of root_x
-                    self.parent.insert(root_y, root_x);
-                    *self.rank.entry(root_x).or_insert(0) += 1;
-                }
+        let px = self.find(x);
+        let py = self.find(y);
+    
+        // If both elements are already in the same set, do nothing
+        if px == py {
+            return;
+        }
+    
+        let rank_px = *self.rank.entry(px).or_insert(0);
+        let rank_py = *self.rank.entry(py).or_insert(0);
+    
+        match rank_px.cmp(&rank_py) {
+            Ordering::Equal => {
+                // If ranks are equal, make px the parent and increment its rank
+                self.parent.insert(py, px);
+                *self.rank.entry(px).or_insert(0) += 1;
+            }
+            Ordering::Greater => {
+                // If px has higher rank, make it the parent
+                self.parent.insert(py, px);
+            }
+            Ordering::Less => {
+                // If py has higher rank, make it the parent
+                self.parent.insert(px, py);
             }
         }
     }
+    
 
     pub fn reset(&mut self) {
         self.parent.clear();

@@ -7,7 +7,7 @@ mod embed;
 mod union;
 mod utils;
 
-const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
+const MODULE_PRIME: u64 = (1u64 << 61) - 1;
 
 #[pyclass]
 struct EmbedFunc {
