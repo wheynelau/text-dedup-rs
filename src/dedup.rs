@@ -163,7 +163,7 @@ fn main() {
         .zip(indices.par_iter())
         .map(|(text, idx)| {
             let hs: Vec<Bytes> =
-                embed::py_embed_func(text, args.n_grams, &permutations, &hash_ranges);
+                embed::py_embed_func(text, &args.n_grams, &permutations, &hash_ranges, &5);
             (hs, *idx)
         })
         .collect();

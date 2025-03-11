@@ -5,27 +5,27 @@ use rand::{distr::Uniform, Rng, SeedableRng};
 use regex::Regex;
 use sha1::Sha1;
 use sha3::{Digest, Sha3_256};
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::{BitAnd, Rem}};
+use num_traits::{WrappingMul, WrappingAdd};
 
 /// TODO: Remove hardcodes
 const D: u32 = 32;
 const MODULE_PRIME: u64 = (1u64 << 61) - 1;
-const MAX_HASH: u64 = (u32::MAX) as u64;
-const MIN_LENGTH: u32 = 5;
+const MAX_HASH: u64 = (1u64 << 32) - 1; // no difference from u32::MAX?
 
 lazy_static! {
     static ref RE: Regex = Regex::new(r"\W").unwrap();
 }
 
-fn ngrams(sequence: Vec<String>, n: u32, min_length: u32) -> Vec<Vec<String>> {
-    if sequence.len() < min_length as usize {
+fn ngrams(sequence: Vec<String>, n: &u32, min_length: &u32) -> Vec<Vec<String>> {
+    if sequence.len() < *min_length as usize {
         return vec![];
     }
-    if sequence.len() < n as usize {
+    if sequence.len() < *n as usize {
         return vec![sequence];
     }
     sequence
-        .windows(n as usize)
+        .windows(*n as usize)
         .map(|window| window.to_vec())
         .collect()
 }
@@ -63,7 +63,7 @@ fn split_text(text: &str) -> Vec<String> {
     RE.split(text).map(|s| s.to_ascii_lowercase()).collect()
 }
 
-fn tokenize(text: &str, n: u32, min_length: u32) -> HashSet<Vec<u8>> {
+fn tokenize(text: &str, n: &u32, min_length: &u32) -> HashSet<Vec<u8>> {
     // let text: String = text.to_lowercase();
 
     let filtered_content: Vec<String> = split_text(text);
@@ -131,7 +131,7 @@ fn permute_hashes(
         inner_vec.clear(); // Create a vector to hold the computed hashes for this iteration
         for (a_val, b_val) in a.iter().zip(b.iter()) {
             let computed_hash =
-                (hash.wrapping_mul(*a_val).wrapping_add(*b_val) % modulo_prime) & max_hash;
+                (hash.wrapping_mul(a_val).wrapping_add(*b_val) % modulo_prime) & max_hash;
             inner_vec.push(computed_hash); // Store each computed hash in the inner vector
         }
         new_hashvalues.push(inner_vec.clone()); // Add the inner vector to the outer vector after each iteration of the inner loop
@@ -157,8 +157,9 @@ fn find_min(hashvalues: Vec<Vec<u32>>) -> Vec<u32> {
     min_values
 }
 // helper function
-fn hash_helper(hash: u64, a: u64, b: u64, modulo_prime: u64, max_hash: u64) -> u64 {
-    (hash.wrapping_mul(a).wrapping_add(b) % modulo_prime) & max_hash
+fn hash_helper<T>(hash: T, a: T, b: T, modulo_prime: T, max_hash: T) -> T
+where T: WrappingMul + WrappingAdd + Copy + Rem<Output = T> + BitAnd<Output = T>{
+    (hash.wrapping_mul(&a).wrapping_add(&b) % modulo_prime) & max_hash
 }
 
 // fused min_hash, uses a single function, with flat datastructure
@@ -174,7 +175,7 @@ fn min_hash_fused(
     // Restructured loop order for better cache locality
     for &hash in hashvalues {
         for ((&a_val, &b_val), min_val) in a.iter().zip(b.iter()).zip(min_values.iter_mut()) {
-            let computed_hash = hash_helper(hash, a_val, b_val, modulo_prime, max_hash);
+            let computed_hash = hash_helper::<u64>(hash, a_val, b_val, modulo_prime, max_hash);
             if computed_hash < *min_val {
                 *min_val = computed_hash;
             }
@@ -204,13 +205,14 @@ fn swap_bytes(hashvalues: &[u64], hash_ranges: &[(u32, u32)]) -> Vec<Vec<u8>> {
 
 pub fn py_embed_func(
     text: &str,
-    n_grams: u32,
+    n_grams: &u32,
     permutations: &(ArcArray1<u64>, ArcArray1<u64>),
     hash_ranges: &[(u32, u32)],
+    min_length: &u32,
 ) -> Vec<Vec<u8>> {
     let (a, b) = permutations;
 
-    let tokens = tokenize(text, n_grams, MIN_LENGTH);
+    let tokens = tokenize(text, n_grams, min_length);
 
     let hashes: Vec<u64> = hash_tokens(tokens);
 
@@ -235,7 +237,7 @@ mod tests {
         let hash_ranges: Vec<(u32, u32)> = (0..b).map(|i| (i * r, (i + 1) * r)).collect();
         let n = 2;
         let text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
-        py_embed_func(text, n, &permutations, &hash_ranges);
+        py_embed_func(text, &n, &permutations, &hash_ranges, &5);
     }
     #[test]
     fn test_split_text() {
@@ -272,7 +274,7 @@ mod tests {
             "",
         ];
         let text = text.iter().map(|s| s.to_string()).collect();
-        let ngrams = ngrams(text, n, min_length);
+        let ngrams = ngrams(text, &n, &min_length);
         // from python
         assert_eq!(ngrams.len(), 8);
     }
@@ -296,7 +298,7 @@ mod tests {
         let n = 3;
         let min_length = 5;
         let text = "Lorem ipsum dolor sit amet, ";
-        let tokens = tokenize(text, n, min_length);
+        let tokens = tokenize(text, &n, &min_length);
         assert_eq!(tokens, baseline);
         let baseline: HashSet<Vec<u8>> = HashSet::from_iter(vec![
             vec![
@@ -315,7 +317,7 @@ mod tests {
         let n = 4;
         let min_length = 5;
         let text = "Lorem ipsum dolor sit amet, ";
-        let tokens = tokenize(text, n, min_length);
+        let tokens = tokenize(text, &n, &min_length);
         assert_eq!(tokens, baseline);
     }
     #[test]
@@ -395,25 +397,57 @@ mod tests {
         let baseline: Vec<u32> = vec![203138723, 1807728068];
         assert_eq!(hashvalues, baseline);
     }
-    // The below tests are not working for u64
-    // #[test]
-    // fn test_fused_min_hash() {
-    //     let original_hashvalues: Vec<u32> = vec![3201882886, 3634006389];
-    //     let a: ArcArray1<u32> = ArcArray1::from(vec![3143890027, 3348747336]);
-    //     let b: ArcArray1<u32> = ArcArray1::from(vec![2571218620, 2563451924]);
-    //     let max_hash: u32 = u32::MAX;
-    //     let modulo_prime: u32 = u32::MAX - 4;
-    //     let result = min_hash_fused(&original_hashvalues, &a, &b, modulo_prime, max_hash);
-    //     let baseline: Vec<u32> = vec![203138723, 1807728068];
-    //     assert_eq!(result, baseline);
-    // }
-    // #[test]
-    // fn test_byte_swap() {
-    //     // The hashvalues are generated with the python code
-    //     let hashvalues: Vec<u32> = vec![203138723, 1807728068];
-    //     let hash_ranges: Vec<(u32, u32)> = vec![(0, 1), (1, 2)];
-    //     let result = swap_bytes(&hashvalues, &hash_ranges);
-    //     let baseline = vec![vec![12, 27, 166, 163], vec![107, 191, 189, 196]];
-    //     assert_eq!(result, baseline);
-    // }
+    #[test]
+    fn test_fused_min_hash() {
+        let original_hashvalues: Vec<u64> = vec![ 684415160,  659044179,  971394434, 2591406015, 1557223710,
+        827156816, 3839636002, 1313217433,  334402827, 3601442597];
+        let a: ArcArray1<u64> = ArcArray1::from(vec![2297359619001564596, 1396682528897996047]);
+        let b: ArcArray1<u64> = ArcArray1::from(vec![1973689801170867271, 1819927849474927636]);
+        let max_hash: u64 = (1u64 << 32) - 1;
+        let modulo_prime: u64 = (1u64 << 61) - 1;
+        let result = min_hash_fused(&original_hashvalues, &a, &b, modulo_prime, max_hash);
+        let baseline: Vec<u64> = vec![ 307409119, 1040993984];
+        assert_eq!(result, baseline);
+    }
+    #[test]
+    fn test_byte_swap() {
+        // The hashvalues are generated with the python code
+        let hashvalues: Vec<u64> = vec![ 307409119, 1040993984];
+        let hash_ranges: Vec<(u32, u32)> = vec![(0, 1), (1, 2)];
+        let result = swap_bytes(&hashvalues, &hash_ranges);
+        let baseline = vec![vec![0, 0, 0, 0, 18, 82, 176, 223], vec![0, 0, 0, 0, 62, 12, 78, 192]];
+        assert_eq!(result, baseline);
+        let hash_ranges: Vec<(u32, u32)> = vec![(0, 2)];
+        let result = swap_bytes(&hashvalues, &hash_ranges);
+        let baseline = vec![vec![0, 0, 0, 0, 18, 82, 176, 223, 0, 0, 0, 0, 62, 12, 78, 192]];
+        assert_eq!(result, baseline);
+    }
+    #[test]
+    fn test_full_functional() {
+        let file = "tests/assets/sonnets.txt";
+        let content = std::fs::read_to_string(file).expect("Unable to read file");
+        let tokens = tokenize(&content, &3, &5);
+        println!("{:?}", tokens.len());
+        // from python
+        assert_eq!(tokens.len(), 19775);
+        let hashvalues = hash_tokens(tokens);
+        let a: ArcArray1<u64> = ArcArray1::from(vec![2297359619001564596, 1396682528897996047, 1973689801170867272,
+            1819927849474927637,  572192888165898362]);
+        let b: ArcArray1<u64> = ArcArray1::from(vec![ 571748048327668950, 1071453510346823114, 2143071682933157236,
+            1865242737500154727, 1532418594269339778]);
+        let max_hash: u64 = (1u64 << 32) - 1;
+        let modulo_prime: u64 = (1u64 << 61) - 1;
+        let result = min_hash_fused(&hashvalues, &a, &b, modulo_prime, max_hash);
+        assert_eq!(result, vec![796983, 189220, 151464, 153940, 155229]);
+        let hash_ranges: Vec<(u32, u32)> = vec![(0, 4), (4, 8), (8, 12), (12, 16)];
+        let result = swap_bytes(&result, &hash_ranges);
+        let baseline:Vec<Vec<u8>> = vec![
+            vec![0, 0, 0, 0, 0, 12, 41, 55, 0, 0, 0, 0, 0, 2, 227, 36, 0, 0, 0, 0, 0, 2, 79, 168, 0, 0, 0, 0, 0, 2, 89, 84],
+            vec![0, 0, 0, 0, 0, 2, 94, 93],
+            vec![],
+            vec![],
+        ];
+        assert_eq!(result, baseline);
+
+    }
 }

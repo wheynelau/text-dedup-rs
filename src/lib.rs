@@ -1,14 +1,14 @@
 use ndarray::ArcArray1;
 use pyo3::{prelude::*, types::PyType};
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, sync::Arc};
 
 mod embed;
 mod union;
 mod utils;
 
 const MODULE_PRIME: u64 = (1u64 << 61) - 1;
-
+type Bytes = Vec<u8>;
 #[pyclass]
 struct EmbedFunc {
     hash_values: Vec<(u32, u32)>,
@@ -20,6 +20,8 @@ struct EmbedFunc {
     #[pyo3(get)]
     edges: Vec<(u32, u32)>,
     permutations: (ArcArray1<u64>, ArcArray1<u64>),
+    dtype: String,
+    min_len: u32,
 }
 #[derive(IntoPyObject, IntoPyObjectRef)]
 enum Sig {
@@ -70,9 +72,11 @@ impl EmbedFunc {
         false_negative: f64,
         main_col: &str,
         idx_col: &str,
+        dtype: &str,
+        min_len: u32,
     ) -> Self {
         let (b, r) = utils::optimal_param(threshold, num_perm, false_positive, false_negative);
-        Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col)
+        Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col, dtype.to_string(), min_len)
     }
     ///
     /// Create a new EmbedFunc object with the known B and R values
@@ -94,8 +98,10 @@ impl EmbedFunc {
         num_perm: u32,
         main_col: &str,
         idx_col: &str,
+        dtype: &str,
+        min_len: u32
     ) -> Self {
-        Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col)
+        Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col, dtype.to_string(), min_len)
     }
     #[staticmethod]
     fn shared_init(
@@ -105,6 +111,8 @@ impl EmbedFunc {
         num_perm: u32,
         main_col: &str,
         idx_col: &str,
+        dtype: String,
+        min_len: u32
     ) -> Self {
         let b = {
             let max_b = num_perm / r;
@@ -132,21 +140,10 @@ impl EmbedFunc {
             hash_tables,
             edges,
             permutations,
+            dtype,
+            min_len,
         }
     }
-    ///
-    /// Not in use unless its for single line
-    ///
-    fn embed_func(&self, text: &str, idx: u32) -> HashMap<String, Sig> {
-        let hs: Vec<Vec<u8>> =
-            embed::py_embed_func(text, self.n_grams, &self.permutations, &self.hash_values);
-
-        let mut map = HashMap::new();
-        map.insert(self.main_col.to_string(), Sig::Signature(hs));
-        map.insert(self.idx_col.to_string(), Sig::Index(idx));
-        map
-    }
-
     ///
     /// Add the signature to the hash table
     ///
@@ -155,7 +152,7 @@ impl EmbedFunc {
     /// * `index` - The index of the hash table
     /// * `hash` - The signature to be added
     /// * `i` - The index of the signature
-    fn batch_add(&mut self, hashes: Vec<Vec<u8>>, key: u32) {
+    fn batch_add(&mut self, hashes: Vec<Bytes>, key: u32) {
         hashes.into_iter().enumerate().for_each(|(index, hash)| {
             if let Some(table) = self.hash_tables.get_mut(index) {
                 let entry = table.entry(hash).or_insert_with(HashSet::new);
@@ -172,7 +169,7 @@ impl EmbedFunc {
             .zip(idx.par_iter())
             .map(|(s, &i)| {
                 let mapped =
-                    embed::py_embed_func(s, self.n_grams, &self.permutations, &self.hash_values);
+                    embed::py_embed_func(s, &self.n_grams, &self.permutations, &self.hash_values, &self.min_len);
                 (mapped, i)
             })
             .collect();
@@ -206,10 +203,53 @@ impl EmbedFunc {
         uf
     }
 }
+///
+/// def embed_func(
+// content: str,
+// idx: int,
+// *,
+// num_perm: int,
+// ngram_size: int,
+// min_length: int,
+// hashranges: list[tuple[int, int]],
+// permutations: np.ndarray,
+// hash_func: Callable,
+// dtype: type,
+// max_hash: np.uint,
+// modulo_prime: np.uint,
+// ) -> dict[str, Any]:
+#[pyfunction]
+fn embed_func(
+    content: String,
+    ngram_size: u32,
+    permutations: (Vec<u64>, Vec<u64>),
+    hashranges: Vec<(u32, u32)>,
+    min_length: u32,
+    idx: Option<u32>,
+) -> HashMap<String, Sig> {
+    let hash_ranges: Vec<(u32, u32)> = hashranges;
+    let permutations = (
+        ArcArray1::from(permutations.0),
+        ArcArray1::from(permutations.1),
+    );
+    let hashes = embed::py_embed_func(
+        &content,
+        &ngram_size,
+        &permutations,
+        &hash_ranges,
+        &min_length,
+    );
+    let mut result = HashMap::new();
+    result.insert("__signatures__".to_string(), Sig::Signature(hashes));
+    let idx = idx.unwrap_or(0);
+    result.insert("__index__".to_string(), Sig::Index(idx));
+    result
+}
 
 #[pymodule]
-fn dedup_rs(_py: Python, m: Bound<PyModule>) -> PyResult<()> {
+fn dedup_rs(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EmbedFunc>()?;
     m.add_class::<union::UnionFind>()?;
+    m.add_function(wrap_pyfunction!(embed_func, m)?)?;
     Ok(())
 }
