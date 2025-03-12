@@ -281,7 +281,6 @@ if __name__ == "__main__":
         )
     with t("MinRust"):
         ctx = click.Context(minhash_rust_main)
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
         io_args.output = minhash_output_rust = "./temp_files/temp_output_minhash_rust"
         ctx.invoke(
             minhash_rust_main,
@@ -293,7 +292,6 @@ if __name__ == "__main__":
     with t("MinHash Pure RS"):
         ctx = click.Context(minhash_pure_rs_main)
         io_args.output = minhash_output_rs = "./temp_files/temp_output_minhash_rs"
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
         ctx.invoke(
             minhash_pure_rs_main,
             io_args=io_args,

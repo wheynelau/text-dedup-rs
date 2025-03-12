@@ -33,7 +33,7 @@ from text_dedup.utils import xxh3_16hash
 from text_dedup.utils import xxh3_32hash
 
 SEED = 42
-RNG = np.random.RandomState(SEED)
+RNG = np.random.RandomState()
 NON_ALPHA = re.compile(r"\W", re.UNICODE)
 datasets.logging.set_verbosity_error()
 # for is originally used to reduce memory usage in MacOS but also ensures that the Union Find data structure
@@ -132,7 +132,7 @@ def embed_func(
     hashvalues = np.vstack([hashvalues, masks]).min(axis=0)
     # Originally, byteswap was done for speed. Testing show it has a negligible impact
     # keeping  for backward compatibility, even though theoretically and empirically
-    # it doesnt matter if it is there or not. github.com/ekzhu/datasketch/issues/114
+    # it doesnt matter if it is there or not.
     Hs: list[bytes] = [bytes(hashvalues[start:end].byteswap().data) for start, end in hashranges]
     return {SIGNATURE_COLUMN: Hs, INDEX_COLUMN: idx}
 

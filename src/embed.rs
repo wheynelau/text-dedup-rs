@@ -9,7 +9,6 @@ use std::{collections::HashSet, ops::{BitAnd, Rem}};
 use num_traits::{WrappingMul, WrappingAdd};
 
 /// TODO: Remove hardcodes
-const D: u32 = 32;
 const MODULE_PRIME: u64 = (1u64 << 61) - 1;
 const MAX_HASH: u64 = (1u64 << 32) - 1; // no difference from u32::MAX?
 
@@ -42,21 +41,11 @@ fn sha1_hash(data: &[u8]) -> u32 {
 
 #[allow(dead_code)]
 fn sha3_hash(data: &[u8]) -> u64 {
-    let d = D;
     let mut hasher = Sha3_256::new();
     hasher.update(data);
     let result = hasher.finalize();
 
-    match d {
-        32 => LittleEndian::read_u32(&result[0..4]) as u64,
-        64 => LittleEndian::read_u64(&result[0..8]),
-        _ => {
-            let bytes_to_read = (d / 8) as usize;
-            let mut buffer = vec![0; bytes_to_read];
-            buffer.copy_from_slice(&result[0..bytes_to_read]);
-            LittleEndian::read_uint(&buffer, bytes_to_read)
-        }
-    }
+    LittleEndian::read_u64(&result[0..8])
 }
 
 fn split_text(text: &str) -> Vec<String> {
@@ -220,10 +209,6 @@ pub fn py_embed_func(
 
     swap_bytes(&hashvalues, hash_ranges)
 }
-// TESTS ARE BROKEN
-// More info: u32 was testing to be precise
-// But realised that in the benchmarks, python was done in u64
-// Therefore, need to modify the test for u64 as well
 #[cfg(test)]
 mod tests {
     use super::*;

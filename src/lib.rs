@@ -1,7 +1,7 @@
 use ndarray::ArcArray1;
 use pyo3::{prelude::*, types::PyType};
 use rayon::prelude::*;
-use std::{collections::{HashMap, HashSet}, sync::Arc};
+use std::collections::{HashMap, HashSet};
 
 mod embed;
 mod union;
@@ -20,8 +20,8 @@ struct EmbedFunc {
     #[pyo3(get)]
     edges: Vec<(u32, u32)>,
     permutations: (ArcArray1<u64>, ArcArray1<u64>),
-    dtype: String,
-    min_len: u32,
+    dtype: Option<String>,
+    min_len: Option<u32>,
 }
 #[derive(IntoPyObject, IntoPyObjectRef)]
 enum Sig {
@@ -72,11 +72,11 @@ impl EmbedFunc {
         false_negative: f64,
         main_col: &str,
         idx_col: &str,
-        dtype: &str,
-        min_len: u32,
+        dtype: Option<String>,
+        min_len: Option<u32>,
     ) -> Self {
         let (b, r) = utils::optimal_param(threshold, num_perm, false_positive, false_negative);
-        Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col, dtype.to_string(), min_len)
+        Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col, dtype, min_len)
     }
     ///
     /// Create a new EmbedFunc object with the known B and R values
@@ -98,10 +98,38 @@ impl EmbedFunc {
         num_perm: u32,
         main_col: &str,
         idx_col: &str,
-        dtype: &str,
-        min_len: u32
+        dtype: Option<String>,
+        min_len: Option<u32>
     ) -> Self {
-        Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col, dtype.to_string(), min_len)
+        Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col, dtype, min_len)
+    }
+    #[classmethod]
+    fn from_permutations(
+        _cls: &Bound<'_, PyType>,
+        n_grams: u32,
+        min_len: u32,
+        hashranges: Vec<(u32, u32)>,
+        permutations: (Vec<u64>, Vec<u64>),
+    ) -> Self {
+        let b = hashranges.len() as u32;
+        let hash_tables: Vec<HashMap<Vec<u8>, HashSet<u32>>> = vec![HashMap::new(); b as usize];
+        let edges: Vec<(u32, u32)> = Vec::new();
+        let permutations = (
+            ArcArray1::from(permutations.0),
+            ArcArray1::from(permutations.1),
+        );
+        let dtype = None;
+        EmbedFunc {
+            hash_values: hashranges,
+            main_col: "__signatures__".to_string(),
+            idx_col:  "__index__".to_string(),
+            n_grams,
+            hash_tables,
+            edges,
+            permutations,
+            dtype,
+            min_len: Some(min_len),
+    }
     }
     #[staticmethod]
     fn shared_init(
@@ -111,8 +139,8 @@ impl EmbedFunc {
         num_perm: u32,
         main_col: &str,
         idx_col: &str,
-        dtype: String,
-        min_len: u32
+        dtype: Option<String>,
+        min_len: Option<u32>
     ) -> Self {
         let b = {
             let max_b = num_perm / r;
@@ -168,8 +196,9 @@ impl EmbedFunc {
             .par_iter()
             .zip(idx.par_iter())
             .map(|(s, &i)| {
+                let min_len = self.min_len.unwrap_or(5); // Default to 5 if min_len is None
                 let mapped =
-                    embed::py_embed_func(s, &self.n_grams, &self.permutations, &self.hash_values, &self.min_len);
+                    embed::py_embed_func(s, &self.n_grams, &self.permutations, &self.hash_values, &min_len);
                 (mapped, i)
             })
             .collect();

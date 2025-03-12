@@ -4,10 +4,7 @@ use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use rayon::prelude::*;
 use serde_json::json;
 use std::{
-    collections::{HashMap, HashSet},
-    fs::File,
-    path::Path,
-    sync::{Arc, Mutex},
+    collections::{HashMap, HashSet}, fs::File, path::Path, sync::{Arc, Mutex}
 };
 
 mod embed;
@@ -15,7 +12,7 @@ mod union;
 const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
 
 type Bytes = Vec<u8>;
-type ThreadSafeHashTable = Arc<Vec<Mutex<HashMap<Bytes, HashSet<u32>>>>>;
+type HashTable = Vec<HashMap<Vec<u8>, HashSet<u32>>>;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -41,6 +38,9 @@ struct Args {
     #[arg(short, long, default_value = "id")]
     idx_col: String,
 
+    #[arg(short, long, default_value = "5")]
+    min_len: u32,
+
     #[arg(short, long, default_value = "uf_output")]
     uf_output: String,
 }
@@ -61,22 +61,20 @@ fn process_batch(batch: &RecordBatch, main_col: &str, idx_col: &str) -> (StringA
     (text_col.clone(), id_col.clone())
 }
 
-fn batch_add(hashes: Vec<Bytes>, key: u32, hash_tables: &ThreadSafeHashTable) {
+fn batch_add(hashes: Vec<Bytes>, key: u32, hash_tables: &mut HashTable) {
     hashes.into_iter().enumerate().for_each(|(index, hash)| {
-        if let Some(table_lock) = hash_tables.get(index) {
-            let mut table = table_lock.lock().unwrap();
+        if let Some(table) = hash_tables.get_mut(index) {
             let entry = table.entry(hash).or_insert_with(HashSet::new);
             entry.insert(key);
         }
     });
 }
 
-fn cluster(hash_tables: ThreadSafeHashTable) -> union::UnionFind {
+fn cluster(hash_tables: HashTable) -> union::UnionFind {
     let uf = union::UnionFind::new();
     let uf = Arc::new(Mutex::new(uf));
 
-    hash_tables.par_iter().for_each(|table_mutex| {
-        let table = table_mutex.lock().unwrap(); // Lock the table to read its contents
+    hash_tables.iter().for_each(|table| {// Lock the table to read its contents
         let mut uf = uf.lock().unwrap(); // Lock the UnionFind for each operation
         for cluster in table.values() {
             if cluster.len() <= 1 {
@@ -119,12 +117,7 @@ fn main() {
 
     let hash_ranges: Vec<(u32, u32)> = generate_hash_rangs(b, args.r);
 
-    let hash_tables = Arc::new(
-        (0..b)
-            .map(|_| Mutex::new(HashMap::<Bytes, HashSet<u32>>::new()))
-            .collect::<Vec<_>>(),
-    );
-
+    let mut hash_tables: Vec<HashMap<Vec<u8>, HashSet<u32>>> = vec![HashMap::new(); b as usize];
     let permutations = embed::generate_permutations(MODULE_PRIME as usize, args.num_perm);
 
     // Setup conditions
@@ -163,15 +156,15 @@ fn main() {
         .zip(indices.par_iter())
         .map(|(text, idx)| {
             let hs: Vec<Bytes> =
-                embed::py_embed_func(text, &args.n_grams, &permutations, &hash_ranges, &5);
+                embed::py_embed_func(text, &args.n_grams, &permutations, &hash_ranges, &args.min_len);
             (hs, *idx)
         })
         .collect();
 
     println!("Time to embed to HS: {:?}", start_time.elapsed());
     let start_time = std::time::Instant::now();
-    text_idx.par_iter().for_each(|(sig, i)| {
-        batch_add(sig.clone(), *i, &hash_tables);
+    text_idx.iter().for_each(|(sig, i)| {
+        batch_add(sig.clone(), *i, &mut hash_tables);
     });
 
     println!("Time to hash: {:?}", start_time.elapsed());

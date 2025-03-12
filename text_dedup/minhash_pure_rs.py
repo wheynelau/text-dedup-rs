@@ -45,10 +45,11 @@ def main(
 
         command = (
             f"{binary_path} "
-            "--b {} --r {} --num-perm {} --n-grams {} --parquet-path {} --main-col {} --idx-col {} --uf-output {}".format(
+            "--b {} --r {} --num-perm {} --min-len {} --n-grams {} --parquet-path {} --main-col {} --idx-col {} --uf-output {}".format(
                 minhash_args.b,
                 minhash_args.r,
                 minhash_args.num_perm,
+                minhash_args.min_length,
                 minhash_args.ngram,
                 parquet_path,
                 meta_args.column,
@@ -56,6 +57,7 @@ def main(
                 os.path.join(io_args.output, "uf.json"),
             )
         )
+        print(command)
         result = subprocess.run(command, capture_output=True, text=True, shell=True)
         with open("rs_output.json", "r") as f:
             data = json.load(f)

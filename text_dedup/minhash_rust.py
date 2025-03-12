@@ -7,6 +7,8 @@ import multiprocessing as mp
 import os
 import random
 import re
+from collections import defaultdict
+from typing import Any
 
 import click
 import datasets
@@ -26,7 +28,7 @@ from text_dedup.utils import load_hf_dataset
 from text_dedup.utils import optimal_param
 
 SEED = 42
-RNG = np.random.RandomState(SEED)
+RNG = np.random.RandomState()
 NON_ALPHA = re.compile(r"\W", re.UNICODE)
 datasets.logging.set_verbosity_error()
 # for is originally used to reduce memory usage in MacOS but also ensures that the Union Find data structure
@@ -48,9 +50,28 @@ def main(
     global uf
     uf.reset()
 
+    HASH_BITS: int = minhash_args.hash_bits
+
+    # 64 bit config is backwards compatibility mode.
+    # it uses 64 bit types but almost entirely 32bit data, except for one mersenne prime 2^61
+    # why legacy implementations used mersenne primes for modulo:
+    # https://en.wikipedia.org/wiki/Universal_hashing#Hashing_strings
+    HASH_CONFIG: dict[int, tuple[type, Any, Any]] = {
+        64: (np.uint64, np.uint32((1 << 32) - 1), np.uint64((1 << 61) - 1)),
+        # 32, 16 bit config does not use a mersenne prime.
+        # The original reason for using mersenne prime was speed.
+        # Testing reveals, there is no benefit to using a 2^61 mersenne prime for division
+        32: (np.uint32, np.uint32((1 << 32) - 1), np.uint32((1 << 32) - 5)),
+        16: (np.uint16, np.uint16((1 << 16) - 1), np.uint16((1 << 16) - 15)),
+    }
+
+    # defaults to backwards compatible HASH_BITS = 64, which is np.uint64 dtypes with 32bit hashes
+    DTYPE, MAX_HASH, MODULO_PRIME = HASH_CONFIG.get(HASH_BITS, HASH_CONFIG[64])
+
+    timer = Timer()
+
     if minhash_args.b is not None and minhash_args.r is not None:
         B, R = minhash_args.b, minhash_args.r
-        Emb = EmbedFunc.from_b_r(B, R, minhash_args.ngram, minhash_args.num_perm, SIGNATURE_COLUMN, INDEX_COLUMN)
     else:
         # Compute the optimal `MinHashLSH` parameter that minimizes the weighted sum
         # of probabilities of false positive and false negative, taken from datasketch.
@@ -58,15 +79,34 @@ def main(
         # The following assumes a "perfect hash". using 16 bit hashes might challenge this assumption
         # lower precision dtype will cause more collisions, so higher false_positives and less false negatives.
         # Both effects move the result towards more documents being considered duplicates.
-        Emb = EmbedFunc(
-            threshold=0.5,
-            num_perm=minhash_args.num_perm,
-            n_grams=minhash_args.ngram,
-            false_positive=0.5,
-            false_negative=0.5,
-            main_col=SIGNATURE_COLUMN,
-            idx_col=INDEX_COLUMN,
+        B, R = optimal_param(
+            minhash_args.threshold,
+            minhash_args.num_perm,
+            false_positive_weight=0.5,
+            false_negative_weight=0.5,
         )
+
+    HASH_RANGES = [(i * R, (i + 1) * R) for i in range(B)]
+
+    # for minhash, we need to make a lot of hashes(=num_perms).
+    # In many previous implementations, this is achieved through a method described in
+    # `Universal classes of hash functions` https://doi.org/10.1016/0022-0000(79)90044-8
+    # There we start with a know good hash x (=hash_func) and permutate it as the following:
+    # `new_hash = (a * x + b) mod prime mod max_hash` we need one a (!=0), b pair per new hash
+    # the following produces these a, b pairs
+    PERMUTATIONS: tuple[np.ndarray, np.ndarray] = (
+        RNG.randint(
+            1, MODULO_PRIME, size=(minhash_args.num_perm,), dtype=DTYPE
+        ),  # a is a multiplier so should not be 0
+        RNG.randint(0, MODULO_PRIME, size=(minhash_args.num_perm,), dtype=DTYPE),  # b
+    )
+
+    Emb = EmbedFunc.from_permutations(
+        n_grams=minhash_args.ngram,
+        min_len=minhash_args.min_length,
+        hashranges=HASH_RANGES,
+        permutations=PERMUTATIONS,
+    )
 
     timer = Timer()
 
