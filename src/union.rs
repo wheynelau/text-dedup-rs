@@ -50,15 +50,15 @@ impl UnionFind {
     pub fn union(&mut self, x: usize, y: usize) {
         let px = self.find(x);
         let py = self.find(y);
-    
+
         // If both elements are already in the same set, do nothing
         if px == py {
             return;
         }
-    
+
         let rank_px = *self.rank.entry(px).or_insert(0);
         let rank_py = *self.rank.entry(py).or_insert(0);
-    
+
         match rank_px.cmp(&rank_py) {
             Ordering::Equal => {
                 // If ranks are equal, make px the parent and increment its rank
@@ -75,7 +75,6 @@ impl UnionFind {
             }
         }
     }
-    
 
     pub fn reset(&mut self) {
         self.parent.clear();

@@ -94,12 +94,17 @@ def main(
     # There we start with a know good hash x (=hash_func) and permutate it as the following:
     # `new_hash = (a * x + b) mod prime mod max_hash` we need one a (!=0), b pair per new hash
     # the following produces these a, b pairs
-    PERMUTATIONS: tuple[np.ndarray, np.ndarray] = (
-        RNG.randint(
-            1, MODULO_PRIME, size=(minhash_args.num_perm,), dtype=DTYPE
-        ),  # a is a multiplier so should not be 0
-        RNG.randint(0, MODULO_PRIME, size=(minhash_args.num_perm,), dtype=DTYPE),  # b
-    )
+    if os.getenv("DETERMINISTIC", "0") == "1":
+        a = np.arange((1 << 32), (1 << 32) + minhash_args.num_perm, dtype=DTYPE)
+        b = np.arange((1 << 32), (1 << 32) + minhash_args.num_perm, dtype=DTYPE)
+        PERMUTATIONS = (a, b)
+    else:
+        PERMUTATIONS: tuple[np.ndarray, np.ndarray] = (
+            RNG.randint(
+                1, MODULO_PRIME, size=(minhash_args.num_perm,), dtype=DTYPE
+            ),  # a is a multiplier so should not be 0
+            RNG.randint(0, MODULO_PRIME, size=(minhash_args.num_perm,), dtype=DTYPE),  # b
+        )
 
     Emb = EmbedFunc.from_permutations(
         n_grams=minhash_args.ngram,

@@ -63,8 +63,7 @@ Benchmark results are in [BENCHMARKS](docs/BENCHMARKS.md)
 
 ## Issues
 
-1. Some minor differences in the scores, you can review in the benchmarks.
-2. Found out that the major difference previously was due to the u32 type
+1. After setting up some deterministic flags, I found that there were still some variations in the results.  
 
 For testing purposes, the parellelized version is kept. The original code is at this [point](https://github.com/wheynelau/text-dedup-rs/blob/b121d1431f657ea71034b07dc39ae3428f363dbd/src/dedup.rs)
 

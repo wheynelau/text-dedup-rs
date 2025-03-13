@@ -29,26 +29,7 @@ enum Sig {
     Index(u32),
 }
 
-// impl IntoPy<PyObject> for Sig {
-//     fn into_py(self, py: Python) -> PyObject {
-//         match self {
-//             Sig::Signature(vec) => {
-//                 // Convert each Vec<u8> to PyBytes
-//                 let py_list = vec.into_iter()
-//                     .map(|bytes| PyBytes::new(py, &bytes).into_py(py))
-//                     .collect::<Vec<PyObject>>();
-
-//                 // Convert the Vec<PyObject> to a Python list
-//                 py_list.into_py(py)
-//             }
-//             Sig::Index(index) => {
-//                 let py_int: PyObject = index.into_py(py); // Convert u32 to Python integer
-//                 py_int
-//             }
-//         }
-//     }
-// }
-
+// TODO: Need to tidy up
 #[pymethods]
 impl EmbedFunc {
     ///
@@ -99,7 +80,7 @@ impl EmbedFunc {
         main_col: &str,
         idx_col: &str,
         dtype: Option<String>,
-        min_len: Option<u32>
+        min_len: Option<u32>,
     ) -> Self {
         Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col, dtype, min_len)
     }
@@ -122,14 +103,14 @@ impl EmbedFunc {
         EmbedFunc {
             hash_values: hashranges,
             main_col: "__signatures__".to_string(),
-            idx_col:  "__index__".to_string(),
+            idx_col: "__index__".to_string(),
             n_grams,
             hash_tables,
             edges,
             permutations,
             dtype,
             min_len: Some(min_len),
-    }
+        }
     }
     #[staticmethod]
     fn shared_init(
@@ -140,7 +121,7 @@ impl EmbedFunc {
         main_col: &str,
         idx_col: &str,
         dtype: Option<String>,
-        min_len: Option<u32>
+        min_len: Option<u32>,
     ) -> Self {
         let b = {
             let max_b = num_perm / r;
@@ -197,8 +178,13 @@ impl EmbedFunc {
             .zip(idx.par_iter())
             .map(|(s, &i)| {
                 let min_len = self.min_len.unwrap_or(5); // Default to 5 if min_len is None
-                let mapped =
-                    embed::py_embed_func(s, &self.n_grams, &self.permutations, &self.hash_values, &min_len);
+                let mapped = embed::py_embed_func(
+                    s,
+                    &self.n_grams,
+                    &self.permutations,
+                    &self.hash_values,
+                    &min_len,
+                );
                 (mapped, i)
             })
             .collect();

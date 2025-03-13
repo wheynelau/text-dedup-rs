@@ -1,12 +1,16 @@
 use byteorder::{ByteOrder, LittleEndian};
 use lazy_static::lazy_static;
 use ndarray::ArcArray1;
+use num_traits::{WrappingAdd, WrappingMul};
 use rand::{distr::Uniform, Rng, SeedableRng};
 use regex::Regex;
 use sha1::Sha1;
 use sha3::{Digest, Sha3_256};
-use std::{collections::HashSet, ops::{BitAnd, Rem}};
-use num_traits::{WrappingMul, WrappingAdd};
+use std::{
+    collections::HashSet,
+    env,
+    ops::{BitAnd, Rem},
+};
 
 /// TODO: Remove hardcodes
 const MODULE_PRIME: u64 = (1u64 << 61) - 1;
@@ -84,7 +88,21 @@ pub fn generate_permutations(
     let mut rng: rand::rngs::StdRng = SeedableRng::from_seed([42; 32]);
     let dist_a = Uniform::try_from(1..module_prime).expect("Distribution failed?"); // Range is [1, modulo_prime)
     let dist_b = Uniform::try_from(0..module_prime).expect("Distribution failed?"); // Range is [0, modulo_prime)
-
+                                                                                    // find if a env DETERMINISTIC is set
+    if env::var("DETERMINISTIC").unwrap_or_default() == "1" {
+        println!("Using deterministic mode");
+        let a: ArcArray1<u64> = (0..num_perm)
+            .map(|num_perm: u32| (1 << 32) + num_perm as u64)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .collect();
+        let b: ArcArray1<u64> = (0..num_perm)
+            .map(|num_perm: u32| (1 << 32) + num_perm as u64)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .collect();
+        return (a, b);
+    }
     let a: ArcArray1<u64> = (0..num_perm)
         .map(|_| rng.sample(dist_a) as u64)
         .collect::<Vec<_>>()
@@ -147,7 +165,9 @@ fn find_min(hashvalues: Vec<Vec<u32>>) -> Vec<u32> {
 }
 // helper function
 fn hash_helper<T>(hash: T, a: T, b: T, modulo_prime: T, max_hash: T) -> T
-where T: WrappingMul + WrappingAdd + Copy + Rem<Output = T> + BitAnd<Output = T>{
+where
+    T: WrappingMul + WrappingAdd + Copy + Rem<Output = T> + BitAnd<Output = T>,
+{
     (hash.wrapping_mul(&a).wrapping_add(&b) % modulo_prime) & max_hash
 }
 
@@ -384,27 +404,34 @@ mod tests {
     }
     #[test]
     fn test_fused_min_hash() {
-        let original_hashvalues: Vec<u64> = vec![ 684415160,  659044179,  971394434, 2591406015, 1557223710,
-        827156816, 3839636002, 1313217433,  334402827, 3601442597];
+        let original_hashvalues: Vec<u64> = vec![
+            684415160, 659044179, 971394434, 2591406015, 1557223710, 827156816, 3839636002,
+            1313217433, 334402827, 3601442597,
+        ];
         let a: ArcArray1<u64> = ArcArray1::from(vec![2297359619001564596, 1396682528897996047]);
         let b: ArcArray1<u64> = ArcArray1::from(vec![1973689801170867271, 1819927849474927636]);
         let max_hash: u64 = (1u64 << 32) - 1;
         let modulo_prime: u64 = (1u64 << 61) - 1;
         let result = min_hash_fused(&original_hashvalues, &a, &b, modulo_prime, max_hash);
-        let baseline: Vec<u64> = vec![ 307409119, 1040993984];
+        let baseline: Vec<u64> = vec![307409119, 1040993984];
         assert_eq!(result, baseline);
     }
     #[test]
     fn test_byte_swap() {
         // The hashvalues are generated with the python code
-        let hashvalues: Vec<u64> = vec![ 307409119, 1040993984];
+        let hashvalues: Vec<u64> = vec![307409119, 1040993984];
         let hash_ranges: Vec<(u32, u32)> = vec![(0, 1), (1, 2)];
         let result = swap_bytes(&hashvalues, &hash_ranges);
-        let baseline = vec![vec![0, 0, 0, 0, 18, 82, 176, 223], vec![0, 0, 0, 0, 62, 12, 78, 192]];
+        let baseline = vec![
+            vec![0, 0, 0, 0, 18, 82, 176, 223],
+            vec![0, 0, 0, 0, 62, 12, 78, 192],
+        ];
         assert_eq!(result, baseline);
         let hash_ranges: Vec<(u32, u32)> = vec![(0, 2)];
         let result = swap_bytes(&hashvalues, &hash_ranges);
-        let baseline = vec![vec![0, 0, 0, 0, 18, 82, 176, 223, 0, 0, 0, 0, 62, 12, 78, 192]];
+        let baseline = vec![vec![
+            0, 0, 0, 0, 18, 82, 176, 223, 0, 0, 0, 0, 62, 12, 78, 192,
+        ]];
         assert_eq!(result, baseline);
     }
     #[test]
@@ -416,23 +443,35 @@ mod tests {
         // from python
         assert_eq!(tokens.len(), 19775);
         let hashvalues = hash_tokens(tokens);
-        let a: ArcArray1<u64> = ArcArray1::from(vec![2297359619001564596, 1396682528897996047, 1973689801170867272,
-            1819927849474927637,  572192888165898362]);
-        let b: ArcArray1<u64> = ArcArray1::from(vec![ 571748048327668950, 1071453510346823114, 2143071682933157236,
-            1865242737500154727, 1532418594269339778]);
+        let a: ArcArray1<u64> = ArcArray1::from(vec![
+            2297359619001564596,
+            1396682528897996047,
+            1973689801170867272,
+            1819927849474927637,
+            572192888165898362,
+        ]);
+        let b: ArcArray1<u64> = ArcArray1::from(vec![
+            571748048327668950,
+            1071453510346823114,
+            2143071682933157236,
+            1865242737500154727,
+            1532418594269339778,
+        ]);
         let max_hash: u64 = (1u64 << 32) - 1;
         let modulo_prime: u64 = (1u64 << 61) - 1;
         let result = min_hash_fused(&hashvalues, &a, &b, modulo_prime, max_hash);
         assert_eq!(result, vec![796983, 189220, 151464, 153940, 155229]);
         let hash_ranges: Vec<(u32, u32)> = vec![(0, 4), (4, 8), (8, 12), (12, 16)];
         let result = swap_bytes(&result, &hash_ranges);
-        let baseline:Vec<Vec<u8>> = vec![
-            vec![0, 0, 0, 0, 0, 12, 41, 55, 0, 0, 0, 0, 0, 2, 227, 36, 0, 0, 0, 0, 0, 2, 79, 168, 0, 0, 0, 0, 0, 2, 89, 84],
+        let baseline: Vec<Vec<u8>> = vec![
+            vec![
+                0, 0, 0, 0, 0, 12, 41, 55, 0, 0, 0, 0, 0, 2, 227, 36, 0, 0, 0, 0, 0, 2, 79, 168, 0,
+                0, 0, 0, 0, 2, 89, 84,
+            ],
             vec![0, 0, 0, 0, 0, 2, 94, 93],
             vec![],
             vec![],
         ];
         assert_eq!(result, baseline);
-
     }
 }

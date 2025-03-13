@@ -4,7 +4,10 @@ use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use rayon::prelude::*;
 use serde_json::json;
 use std::{
-    collections::{HashMap, HashSet}, fs::File, path::Path, sync::{Arc, Mutex}
+    collections::{HashMap, HashSet},
+    fs::File,
+    path::Path,
+    sync::{Arc, Mutex},
 };
 
 mod embed;
@@ -74,7 +77,8 @@ fn cluster(hash_tables: HashTable) -> union::UnionFind {
     let uf = union::UnionFind::new();
     let uf = Arc::new(Mutex::new(uf));
 
-    hash_tables.iter().for_each(|table| {// Lock the table to read its contents
+    hash_tables.iter().for_each(|table| {
+        // Lock the table to read its contents
         let mut uf = uf.lock().unwrap(); // Lock the UnionFind for each operation
         for cluster in table.values() {
             if cluster.len() <= 1 {
@@ -155,8 +159,13 @@ fn main() {
         .par_iter()
         .zip(indices.par_iter())
         .map(|(text, idx)| {
-            let hs: Vec<Bytes> =
-                embed::py_embed_func(text, &args.n_grams, &permutations, &hash_ranges, &args.min_len);
+            let hs: Vec<Bytes> = embed::py_embed_func(
+                text,
+                &args.n_grams,
+                &permutations,
+                &hash_ranges,
+                &args.min_len,
+            );
             (hs, *idx)
         })
         .collect();
@@ -171,7 +180,7 @@ fn main() {
 
     let start_time = std::time::Instant::now();
 
-    let uf: union::UnionFind = cluster(hash_tables);
+    let mut uf: union::UnionFind = cluster(hash_tables);
     let uf_path = Path::new(&args.uf_output);
     // create directory if it doesn't exist
     if let Some(parent) = uf_path.parent() {
@@ -185,15 +194,9 @@ fn main() {
 
     let start_time = std::time::Instant::now();
     let cluster_column: Vec<u32> = {
-        let uf = Mutex::new(uf);
-
         indices
-            .par_iter_mut()
-            .map(|x| {
-                // Lock the mutex and perform the find operation
-                let mut uf = uf.lock().unwrap();
-                uf.find(*x as usize) as u32
-            })
+            .iter_mut()
+            .map(|x| uf.find(*x as usize) as u32)
             .collect()
     };
 
