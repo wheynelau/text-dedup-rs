@@ -1,6 +1,7 @@
 use byteorder::{ByteOrder, LittleEndian};
 use lazy_static::lazy_static;
 use ndarray::ArcArray1;
+use ndarray::Zip;
 use num_traits::{WrappingAdd, WrappingMul};
 use rand::{distr::Uniform, Rng, SeedableRng};
 use regex::Regex;
@@ -181,14 +182,17 @@ fn min_hash_fused(
 ) -> Vec<u64> {
     let mut min_values = vec![max_hash; a.len()];
 
-    // Restructured loop order for better cache locality
     for &hash in hashvalues {
-        for ((&a_val, &b_val), min_val) in a.iter().zip(b.iter()).zip(min_values.iter_mut()) {
-            let computed_hash = hash_helper::<u64>(hash, a_val, b_val, modulo_prime, max_hash);
-            if computed_hash < *min_val {
-                *min_val = computed_hash;
-            }
-        }
+        // Use ndarray's Zip to operate on corresponding elements of a, b, and min_values
+        Zip::from(a)
+            .and(b)
+            .and(&mut min_values)
+            .for_each(|&a_val, &b_val, min_val| {
+                let computed_hash = hash_helper::<u64>(hash, a_val, b_val, modulo_prime, max_hash);
+                if computed_hash < *min_val {
+                    *min_val = computed_hash;
+                }
+            });
     }
 
     min_values

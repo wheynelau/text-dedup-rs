@@ -131,7 +131,7 @@ def main(
                 input_columns=[meta_args.column, INDEX_COLUMN],
                 remove_columns=[col for col in ds.column_names if col != INDEX_COLUMN],
                 batched=True,
-                batch_size=meta_args.batch_size,
+                batch_size=len(ds), # use the full dataset as batch size
                 with_indices=False,
                 desc="Fingerprinting with rust...",
             )
