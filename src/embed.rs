@@ -57,13 +57,11 @@ fn split_text(text: &str) -> Vec<String> {
 }
 
 fn tokenize(text: &str, n: &u32, min_length: &u32) -> HashSet<Vec<u8>> {
-    // let text: String = text.to_lowercase();
-
     let filtered_content: Vec<String> = split_text(text);
 
     let tokens: HashSet<Vec<u8>> = ngrams(filtered_content, n, min_length)
         .into_iter()
-        .map(|vec| vec.join(" ").to_lowercase().as_bytes().to_vec())
+        .map(|vec| vec.join(" ").to_lowercase().into_bytes())
         .collect();
 
     tokens
@@ -430,11 +428,8 @@ mod tests {
                     .unwrap();
 
                 // Create hash ranges as list of tuples
-                let py_hash_ranges = PyList::new(
-                    py,
-                    hash_ranges.iter().map(|(start, end)| (*start, *end)),
-                )
-                .unwrap();
+                let py_hash_ranges =
+                    PyList::new(py, hash_ranges.iter().map(|(start, end)| (*start, *end))).unwrap();
 
                 // Call Python function
                 let py_kwargs = PyDict::new(py);
@@ -442,9 +437,7 @@ mod tests {
                 py_kwargs.set_item("ngram_size", ngram_size).unwrap();
                 py_kwargs.set_item("min_length", min_length).unwrap();
                 py_kwargs.set_item("hashranges", py_hash_ranges).unwrap();
-                py_kwargs
-                    .set_item("permutations", (np_a, np_b))
-                    .unwrap();
+                py_kwargs.set_item("permutations", (np_a, np_b)).unwrap();
                 py_kwargs.set_item("hash_func", sha1_hash_fn).unwrap();
                 py_kwargs
                     .set_item("dtype", numpy.getattr("uint32").unwrap())
@@ -464,13 +457,8 @@ mod tests {
                     .expect("Failed to extract signatures");
 
                 // Call Rust function
-                let rust_result = py_embed_func(
-                    content,
-                    &ngram_size,
-                    &(&a, &b),
-                    &hash_ranges,
-                    &min_length,
-                );
+                let rust_result =
+                    py_embed_func(content, &ngram_size, &(&a, &b), &hash_ranges, &min_length);
 
                 // Compare
                 assert_eq!(
