@@ -10,42 +10,22 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+mod args;
 mod embed;
 mod union;
+
+use args::Args;
+
 const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
 
 type Bytes = Vec<u8>;
 type HashTable = Vec<HashMap<Vec<u8>, HashSet<u32>>>;
 
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-struct Args {
-    #[arg(short, long, default_value = "50")]
-    b: u32,
-
-    #[arg(short, long, default_value = "4")]
-    r: u32,
-
-    #[arg(short, long, default_value = "200")]
-    num_perm: u32,
-
-    #[arg(short, long, default_value = "2")]
-    n_grams: u32,
-
-    #[arg(short, long, default_value = "text")]
-    main_col: String,
-
-    #[arg(short, long)]
-    parquet_path: String,
-
-    #[arg(short, long, default_value = "id")]
-    idx_col: String,
-
-    #[arg(short, long, default_value = "5")]
-    min_len: u32,
-
-    #[arg(short, long, default_value = "uf_output")]
-    uf_output: String,
+fn get_chunk_size() -> usize {
+    std::env::var("CHUNK_SIZE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1000)
 }
 
 fn process_batch(batch: &RecordBatch, main_col: &str, idx_col: &str) -> (StringArray, Int64Array) {
@@ -155,18 +135,26 @@ fn main() {
 
     let start_time = std::time::Instant::now();
 
+    let chunk_size = get_chunk_size();
     let text_idx: Vec<(Vec<Bytes>, u32)> = signatures
-        .par_iter()
-        .zip(indices.par_iter())
-        .map(|(text, idx)| {
-            let hs: Vec<Bytes> = embed::py_embed_func(
-                text,
-                &args.n_grams,
-                &permutations,
-                &hash_ranges,
-                &args.min_len,
-            );
-            (hs, *idx)
+        .par_chunks(chunk_size)
+        .zip(indices.par_chunks(chunk_size))
+        .flat_map(|(sig_chunk, idx_chunk)| {
+            sig_chunk
+                .iter()
+                .zip(idx_chunk.iter())
+                .map(|(text, idx)| {
+                    let (a, b) = (&permutations.0, &permutations.1);
+                    let hs: Vec<Bytes> = embed::py_embed_func(
+                        text,
+                        &args.n_grams,
+                        &(a, b),
+                        &hash_ranges,
+                        &args.min_len,
+                    );
+                    (hs, *idx)
+                })
+                .collect::<Vec<_>>()
         })
         .collect();
 
@@ -189,6 +177,7 @@ fn main() {
         panic!("The provided path does not have a parent directory. This should not happen");
     }
     println!("Time to cluster: {:?}", start_time.elapsed());
+    println!("Number of edges: {}", uf.edges);
 
     uf.dump(&args.uf_output).unwrap();
 
@@ -202,12 +191,20 @@ fn main() {
 
     // filter
 
+    let chunk_size = get_chunk_size();
     let final_vec: Vec<(String, u32)> = cluster_column
-        .par_iter()
-        .zip(indices.par_iter())
-        .zip(signatures.par_iter())
-        .filter(|((cluster, idx), _text)| cluster == idx)
-        .map(|((_, idx), text)| (text.clone(), *idx))
+        .par_chunks(chunk_size)
+        .zip(indices.par_chunks(chunk_size))
+        .zip(signatures.par_chunks(chunk_size))
+        .flat_map(|((cluster_chunk, idx_chunk), sig_chunk)| {
+            cluster_chunk
+                .iter()
+                .zip(idx_chunk.iter())
+                .zip(sig_chunk.iter())
+                .filter(|((cluster, idx), _text)| cluster == idx)
+                .map(|((_, idx), text)| (text.clone(), *idx))
+                .collect::<Vec<_>>()
+        })
         .collect();
 
     println!("Time to filter: {:?}", start_time.elapsed());

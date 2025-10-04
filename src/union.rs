@@ -1,3 +1,5 @@
+use numpy::PyReadonlyArrayDyn;
+
 use pyo3::{prelude::*, types::PyType};
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::HashMap, fs};
@@ -9,6 +11,9 @@ pub struct UnionFind {
     parent: HashMap<usize, usize>,
     #[pyo3(get)]
     rank: HashMap<usize, usize>,
+    #[pyo3(get)]
+    #[serde(default)]
+    pub edges: usize,
 }
 
 #[pymethods]
@@ -19,6 +24,7 @@ impl UnionFind {
         UnionFind {
             parent: HashMap::new(),
             rank: HashMap::new(),
+            edges: 0,
         }
     }
 
@@ -46,6 +52,16 @@ impl UnionFind {
             root
         }
     }
+    // Batch find
+    #[pyo3(name = "batch_find")]
+    fn batch_find<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        batched_idx: PyReadonlyArrayDyn<'py, u32>,
+    ) -> Vec<usize> {
+        let batched_idx = batched_idx.as_array();
+        let results: Vec<usize> = batched_idx.iter().map(|&x| slf.find(x as usize)).collect();
+        results
+    }
 
     pub fn union(&mut self, x: usize, y: usize) {
         let px = self.find(x);
@@ -56,6 +72,7 @@ impl UnionFind {
             return;
         }
 
+        self.edges += 1;
         let rank_px = *self.rank.entry(px).or_insert(0);
         let rank_py = *self.rank.entry(py).or_insert(0);
 
@@ -79,6 +96,7 @@ impl UnionFind {
     pub fn reset(&mut self) {
         self.parent.clear();
         self.rank.clear();
+        self.edges = 0;
     }
 
     pub fn dump(&self, path: &str) -> PyResult<()> {

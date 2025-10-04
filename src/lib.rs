@@ -1,14 +1,25 @@
-use ndarray::ArcArray1;
+use numpy::PyReadonlyArrayDyn;
 use pyo3::{prelude::*, types::PyType};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 
+mod args;
 mod embed;
 mod union;
 mod utils;
 
+// Re-export for Rust tests
+pub use union::UnionFind;
+
 const MODULE_PRIME: u64 = (1u64 << 61) - 1;
 type Bytes = Vec<u8>;
+
+fn get_chunk_size() -> usize {
+    std::env::var("CHUNK_SIZE")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1000)
+}
 #[pyclass]
 struct EmbedFunc {
     hash_values: Vec<(u32, u32)>,
@@ -19,7 +30,7 @@ struct EmbedFunc {
     hash_tables: Vec<HashMap<Vec<u8>, HashSet<u32>>>,
     #[pyo3(get)]
     edges: Vec<(u32, u32)>,
-    permutations: (ArcArray1<u64>, ArcArray1<u64>),
+    permutations: [Vec<u64>; 2],
     dtype: Option<String>,
     min_len: Option<u32>,
 }
@@ -95,10 +106,6 @@ impl EmbedFunc {
         let b = hashranges.len() as u32;
         let hash_tables: Vec<HashMap<Vec<u8>, HashSet<u32>>> = vec![HashMap::new(); b as usize];
         let edges: Vec<(u32, u32)> = Vec::new();
-        let permutations = (
-            ArcArray1::from(permutations.0),
-            ArcArray1::from(permutations.1),
-        );
         let dtype = None;
         EmbedFunc {
             hash_values: hashranges,
@@ -107,7 +114,7 @@ impl EmbedFunc {
             n_grams,
             hash_tables,
             edges,
-            permutations,
+            permutations: [permutations.0, permutations.1],
             dtype,
             min_len: Some(min_len),
         }
@@ -148,7 +155,7 @@ impl EmbedFunc {
             n_grams,
             hash_tables,
             edges,
-            permutations,
+            permutations: [permutations.0, permutations.1],
             dtype,
             min_len,
         }
@@ -172,25 +179,29 @@ impl EmbedFunc {
     ///
     /// This function embeds the text and adds the signature to the hash table
     ///
-    fn batch_embed_shard(&mut self, text: Vec<String>, idx: Vec<u32>) {
+    fn batch_embed_shard<'py>(&mut self, text: Vec<String>, idx: PyReadonlyArrayDyn<'py, u32>) {
+        let idx = idx.as_array();
+        let min_len = self.min_len.unwrap_or(5); // Default to 5 if min_len is None
+        let chunk_size = get_chunk_size();
+        let idx_slice = idx.as_slice().unwrap();
+
         let text_idx: Vec<(Vec<Vec<u8>>, u32)> = text
-            .par_iter()
-            .zip(idx.par_iter())
-            .map(|(s, &i)| {
-                let min_len = self.min_len.unwrap_or(5); // Default to 5 if min_len is None
-                let mapped = embed::py_embed_func(
-                    s,
-                    &self.n_grams,
-                    &self.permutations,
-                    &self.hash_values,
-                    &min_len,
-                );
-                (mapped, i)
+            .par_chunks(chunk_size)
+            .zip(idx_slice.par_chunks(chunk_size))
+            .flat_map(|(text_chunk, idx_chunk)| {
+                text_chunk.iter()
+                    .zip(idx_chunk.iter())
+                    .map(|(s, &i)| {
+                        let (a, b) = (&self.permutations[0], &self.permutations[1]);
+                        let mapped = embed::py_embed_func(s, &self.n_grams, &(a, b), &self.hash_values, &min_len);
+                        (mapped, i)
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect();
 
-        text_idx.iter().for_each(|(sig, i)| {
-            self.batch_add(sig.clone(), *i);
+        text_idx.into_iter().for_each(|(sig, i)| {
+            self.batch_add(sig, i);
         });
     }
     ///
@@ -216,6 +227,49 @@ impl EmbedFunc {
             }
         }
         uf
+    }
+    ///
+    /// Filter duplicates using UnionFind and return indices to keep
+    ///
+    /// # Arguments
+    ///
+    /// * `uf` - The UnionFind data structure
+    /// * `indices` - Array of document indices
+    ///
+    /// # Returns
+    ///
+    /// A vector of positions in the original dataset to keep (non-duplicates)
+    ///
+    fn filter_duplicates<'py>(
+        &self,
+        mut uf: union::UnionFind,
+        indices: PyReadonlyArrayDyn<'py, u32>,
+    ) -> Vec<usize> {
+        let indices_slice = indices.as_slice().unwrap();
+
+        // Pre-compute all cluster assignments sequentially (find() is mutable)
+        let clusters: Vec<u32> = indices_slice
+            .iter()
+            .map(|&idx| uf.find(idx as usize) as u32)
+            .collect();
+
+        // Chunk-based parallel filtering for better cache locality
+        let chunk_size = get_chunk_size();
+        clusters
+            .par_chunks(chunk_size)
+            .zip(indices_slice.par_chunks(chunk_size))
+            .enumerate()
+            .flat_map(|(chunk_idx, (cluster_chunk, idx_chunk))| {
+                let base_pos = chunk_idx * chunk_size;
+                cluster_chunk
+                    .iter()
+                    .zip(idx_chunk.iter())
+                    .enumerate()
+                    .filter(|(_, (&cluster, &idx))| cluster == idx)
+                    .map(move |(i, _)| base_pos + i)
+                    .collect::<Vec<_>>()
+            })
+            .collect()
     }
 }
 ///
@@ -243,17 +297,8 @@ fn embed_func(
     idx: Option<u32>,
 ) -> HashMap<String, Sig> {
     let hash_ranges: Vec<(u32, u32)> = hashranges;
-    let permutations = (
-        ArcArray1::from(permutations.0),
-        ArcArray1::from(permutations.1),
-    );
-    let hashes = embed::py_embed_func(
-        &content,
-        &ngram_size,
-        &permutations,
-        &hash_ranges,
-        &min_length,
-    );
+    let (a, b) = (&permutations.0, &permutations.1);
+    let hashes = embed::py_embed_func(&content, &ngram_size, &(a, b), &hash_ranges, &min_length);
     let mut result = HashMap::new();
     result.insert("__signatures__".to_string(), Sig::Signature(hashes));
     let idx = idx.unwrap_or(0);
