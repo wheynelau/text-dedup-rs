@@ -1,12 +1,10 @@
-<center><img src="https://miro.medium.com/v2/resize:fit:250/format:webp/0*hhHbYq7obAVn6-wl.jpg"/ style="background-color:white;"></center>
-
-# MAKING DEDUP GO BRRRRRR 🚀🚀🚀 (... somewhat)
+# Optimising Text Deduplication in Rust
 
 > "The First Rule of Program Optimization: Don't do it. The Second Rule of Program Optimization (for experts only!): Don't do it yet." — Michael A. Jackson
 > 
 > "If it ain't broke, don't fix it." — Bert Lance
 
-- [MAKING DEDUP GO BRRRRRR 🚀🚀🚀 (... somewhat)](#making-dedup-go-brrrrrr---somewhat)
+This is a Rust port of the [text-dedup](https://github.com/ChenghaoMou/text-dedup) project.
   - [Description](#description)
   - [Learning points](#learning-points)
   - [How to run](#how-to-run)
