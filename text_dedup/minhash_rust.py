@@ -16,7 +16,6 @@ import numpy as np
 
 from text_dedup import logger
 from text_dedup.dedup_rs import EmbedFunc
-from text_dedup.utils import CLUSTER_COLUMN
 from text_dedup.utils import INDEX_COLUMN
 from text_dedup.utils import DisableReferenceCount
 from text_dedup.utils import IOArgs
@@ -126,12 +125,16 @@ def main(
         LEN_DATASET = len(ds)
 
         with timer("Fused embedding, sharding"):
+
+            def batch_embed_shard(records, idx):
+                Emb.batch_embed_shard(records, np.array(idx, dtype=np.uint32))
+
             ds.map(
-                Emb.batch_embed_shard,
+                function=batch_embed_shard,
                 input_columns=[meta_args.column, INDEX_COLUMN],
                 remove_columns=[col for col in ds.column_names if col != INDEX_COLUMN],
                 batched=True,
-                batch_size=len(ds), # use the full dataset as batch size
+                batch_size=len(ds),  # use the full dataset as batch size
                 with_indices=False,
                 desc="Fingerprinting with rust...",
             )
@@ -140,25 +143,15 @@ def main(
             uf = Emb.cluster()
 
         with timer("Filtering"), DisableReferenceCount():
-            ds = ds.map(
-                function=lambda record: {CLUSTER_COLUMN: uf.find(record[INDEX_COLUMN])},
-                with_indices=False,
-                num_proc=io_args.num_proc,
-                new_fingerprint=str(random.getrandbits(128)),
-                desc="Finding clusters...",
-            )
-            # This is where the deduplication happens
-            # Since there is no easy groupby in datasets
-            # I will use this simple filter for now
-            final_data = ds.filter(
-                function=lambda record: record[CLUSTER_COLUMN] == record[INDEX_COLUMN],
-                with_indices=False,
-                num_proc=io_args.num_proc,
-                desc="Filtering clusters...",
-            )
+            indices_array = np.array(ds[INDEX_COLUMN], dtype=np.uint32)
+            keep_positions = Emb.filter_duplicates(uf, indices_array)
+
+            # Use .select() which is much faster than .map() + .filter()
+            final_data = ds.select(keep_positions)
+            logger.info(f"Number of edges: {uf.edges}")
 
         with timer("Saving"):
-            final_data = final_data.remove_columns([CLUSTER_COLUMN, INDEX_COLUMN])
+            final_data = final_data.remove_columns([INDEX_COLUMN])
             final_data.save_to_disk(io_args.output)
             if io_args.debug:
                 uf.dump(os.path.join(io_args.output, "uf.json"))
