@@ -1,6 +1,5 @@
 use byteorder::{ByteOrder, LittleEndian};
 use lazy_static::lazy_static;
-use ndarray::ArcArray1;
 use ndarray::Zip;
 use num_traits::{WrappingAdd, WrappingMul};
 use rand::{distr::Uniform, Rng, SeedableRng};
@@ -54,7 +53,7 @@ fn sha3_hash(data: &[u8]) -> u64 {
 }
 
 fn split_text(text: &str) -> Vec<String> {
-    RE.split(text).map(|s| s.to_ascii_lowercase()).collect()
+    RE.split(text).map(|s| s.to_lowercase()).collect()
 }
 
 fn tokenize(text: &str, n: &u32, min_length: &u32) -> HashSet<Vec<u8>> {
@@ -64,16 +63,7 @@ fn tokenize(text: &str, n: &u32, min_length: &u32) -> HashSet<Vec<u8>> {
 
     let tokens: HashSet<Vec<u8>> = ngrams(filtered_content, n, min_length)
         .into_iter()
-        .map(|vec| {
-            let mut bytes = Vec::new();
-            for (i, s) in vec.iter().enumerate() {
-                if i > 0 {
-                    bytes.push(32); // Append a space before each word except the first
-                }
-                bytes.extend_from_slice(s.as_bytes());
-            }
-            bytes
-        })
+        .map(|vec| vec.join(" ").to_lowercase().as_bytes().to_vec())
         .collect();
 
     tokens
@@ -82,35 +72,23 @@ fn hash_tokens(tokens: HashSet<Vec<u8>>) -> Vec<u64> {
     tokens.iter().map(|token| sha1_hash(token) as u64).collect()
 }
 
-pub fn generate_permutations(
-    module_prime: usize,
-    num_perm: u32,
-) -> (ArcArray1<u64>, ArcArray1<u64>) {
+pub fn generate_permutations(module_prime: usize, num_perm: u32) -> (Vec<u64>, Vec<u64>) {
     let mut rng: rand::rngs::StdRng = SeedableRng::from_seed([42; 32]);
     let dist_a = Uniform::try_from(1..module_prime).expect("Distribution failed?"); // Range is [1, modulo_prime)
     let dist_b = Uniform::try_from(0..module_prime).expect("Distribution failed?"); // Range is [0, modulo_prime)
                                                                                     // find if a env DETERMINISTIC is set
     if env::var("DETERMINISTIC").unwrap_or_default() == "1" {
         println!("Using deterministic mode");
-        let a: ArcArray1<u64> = (0..num_perm)
-            .map(|num_perm: u32| (1 << 32) + num_perm as u64)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .collect();
-        let b: ArcArray1<u64> = (0..num_perm)
-            .map(|num_perm: u32| (1 << 32) + num_perm as u64)
-            .collect::<Vec<_>>()
-            .into_iter()
-            .collect();
+        let start = 1u64 << 32;
+        let a: Vec<u64> = (start..start + num_perm as u64).collect();
+        let b = a.clone();
         return (a, b);
     }
-    let a: ArcArray1<u64> = (0..num_perm)
+    let a: Vec<u64> = (0..num_perm)
         .map(|_| rng.sample(dist_a) as u64)
-        .collect::<Vec<_>>()
-        .into_iter()
-        .collect();
+        .collect::<Vec<_>>();
 
-    let b: ArcArray1<u64> = (0..num_perm)
+    let b: Vec<u64> = (0..num_perm)
         .map(|_| rng.sample(dist_b) as u64)
         .collect::<Vec<_>>()
         .into_iter()
@@ -128,8 +106,8 @@ pub fn generate_permutations(
 #[allow(dead_code)]
 fn permute_hashes(
     hashvalues: Vec<u32>,
-    a: &ArcArray1<u32>,
-    b: &ArcArray1<u32>,
+    a: &[u32],
+    b: &[u32],
     modulo_prime: u32,
     max_hash: u32,
 ) -> Vec<Vec<u32>> {
@@ -175,8 +153,8 @@ where
 // fused min_hash, uses a single function, with flat datastructure
 fn min_hash_fused(
     hashvalues: &[u64],
-    a: &ArcArray1<u64>,
-    b: &ArcArray1<u64>,
+    a: &[u64],
+    b: &[u64],
     modulo_prime: u64,
     max_hash: u64,
 ) -> Vec<u64> {
@@ -219,7 +197,7 @@ fn swap_bytes(hashvalues: &[u64], hash_ranges: &[(u32, u32)]) -> Vec<Vec<u8>> {
 pub fn py_embed_func(
     text: &str,
     n_grams: &u32,
-    permutations: &(ArcArray1<u64>, ArcArray1<u64>),
+    permutations: &(&[u64], &[u64]),
     hash_ranges: &[(u32, u32)],
     min_length: &u32,
 ) -> Vec<Vec<u8>> {
@@ -237,6 +215,274 @@ pub fn py_embed_func(
 mod tests {
     use super::*;
 
+    #[cfg(test)]
+    mod python_comparison {
+        use super::*;
+        use pyo3::prelude::*;
+        use pyo3::types::{PyDict, PyList, PyModule};
+
+        #[test]
+        fn test_tokenize_against_python() {
+            pyo3::Python::attach(|py| {
+                let minhash_module = PyModule::import(py, "text_dedup.minhash")
+                    .expect("Failed to import minhash module");
+
+                let tokenize_fn = minhash_module
+                    .getattr("tokenize_content")
+                    .expect("Failed to get tokenize_content");
+
+                let content = "Lorem ipsum dolor sit amet, ";
+                let ngram_size = 3u32;
+                let min_length = 5u32;
+
+                // Call Python function
+                let py_result = tokenize_fn
+                    .call1((content, ngram_size, min_length))
+                    .expect("Failed to call Python tokenize_content");
+
+                let py_set: Bound<'_, pyo3::types::PySet> = py_result
+                    .downcast()
+                    .expect("Failed to downcast to PySet")
+                    .clone();
+
+                // Convert Python set of bytes to Rust HashSet
+                let mut py_tokens: HashSet<Vec<u8>> = HashSet::new();
+                for item in py_set.iter() {
+                    let bytes: Vec<u8> = item.extract().expect("Failed to extract bytes");
+                    py_tokens.insert(bytes);
+                }
+
+                // Call Rust function
+                let rust_tokens = tokenize(content, &ngram_size, &min_length);
+
+                // Compare
+                assert_eq!(
+                    rust_tokens, py_tokens,
+                    "Rust tokenization doesn't match Python"
+                );
+            });
+        }
+
+        #[test]
+        fn test_hash_tokens_against_python() {
+            pyo3::Python::attach(|py| {
+                let minhash_module = PyModule::import(py, "text_dedup.minhash")
+                    .expect("Failed to import minhash module");
+
+                let compute_base_hashes_fn = minhash_module
+                    .getattr("compute_base_hashes")
+                    .expect("Failed to get compute_base_hashes");
+
+                let sha1_hash_fn = minhash_module
+                    .getattr("sha1_hash")
+                    .expect("Failed to get sha1_hash");
+
+                let numpy = PyModule::import(py, "numpy").expect("Failed to import numpy");
+
+                // Test tokens
+                let tokens: HashSet<Vec<u8>> = HashSet::from_iter(vec![
+                    b"lorem ipsum dolor".to_vec(),
+                    b"ipsum dolor sit".to_vec(),
+                ]);
+
+                // Call Python function - using sha1_hash with d=32 to match Rust
+                let py_tokens = pyo3::types::PySet::new(py, &tokens.iter().collect::<Vec<_>>())
+                    .expect("Failed to create Python set");
+
+                let py_hashes = compute_base_hashes_fn
+                    .call1((py_tokens, sha1_hash_fn, numpy.getattr("uint32").unwrap()))
+                    .expect("Failed to call compute_base_hashes");
+
+                // Extract numpy array to Vec
+                let py_hashes_flat: Vec<u32> = py_hashes
+                    .call_method0("flatten")
+                    .unwrap()
+                    .call_method0("tolist")
+                    .unwrap()
+                    .extract()
+                    .expect("Failed to extract Python hashes");
+
+                // Call Rust function
+                let rust_hashes: HashSet<u64> = HashSet::from_iter(hash_tokens(tokens.clone()));
+
+                // Convert to comparable sets
+                let py_hashes_set: HashSet<u64> =
+                    HashSet::from_iter(py_hashes_flat.iter().map(|&x| x as u64));
+
+                assert_eq!(
+                    rust_hashes, py_hashes_set,
+                    "Rust hashing doesn't match Python"
+                );
+            });
+        }
+
+        #[test]
+        fn test_permute_hashes_against_python() {
+            pyo3::Python::attach(|py| {
+                let minhash_module = PyModule::import(py, "text_dedup.minhash")
+                    .expect("Failed to import minhash module");
+
+                let permute_fn = minhash_module
+                    .getattr("permute_hashes")
+                    .expect("Failed to get permute_hashes");
+                let numpy = PyModule::import(py, "numpy").expect("Failed to import numpy");
+
+                // Test data
+                let hashvalues: Vec<u32> = vec![3201882886, 3634006389];
+                let a: Vec<u32> = vec![3143890027, 3348747336];
+                let b: Vec<u32> = vec![2571218620, 2563451924];
+                let max_hash: u32 = u32::MAX;
+                let modulo_prime: u32 = u32::MAX - 4;
+
+                // Create numpy arrays
+                let np_hashvalues = numpy
+                    .getattr("array")
+                    .unwrap()
+                    .call1((hashvalues.clone(),))
+                    .unwrap()
+                    .call_method1("astype", (numpy.getattr("uint32").unwrap(),))
+                    .unwrap()
+                    .call_method1("reshape", ((-1, 1),))
+                    .unwrap();
+
+                let np_a = numpy
+                    .getattr("array")
+                    .unwrap()
+                    .call1((a.clone(),))
+                    .unwrap()
+                    .call_method1("astype", (numpy.getattr("uint32").unwrap(),))
+                    .unwrap();
+
+                let np_b = numpy
+                    .getattr("array")
+                    .unwrap()
+                    .call1((b.clone(),))
+                    .unwrap()
+                    .call_method1("astype", (numpy.getattr("uint32").unwrap(),))
+                    .unwrap();
+
+                // Call Python function
+                let py_result = permute_fn
+                    .call1((np_hashvalues, np_a, np_b, modulo_prime, max_hash))
+                    .expect("Failed to call permute_hashes");
+
+                // Extract result
+                let py_result_list: Vec<Vec<u32>> = py_result
+                    .call_method0("tolist")
+                    .unwrap()
+                    .extract()
+                    .expect("Failed to extract Python result");
+
+                // Call Rust function
+                let rust_result = permute_hashes(hashvalues, &a, &b, modulo_prime, max_hash);
+
+                // Compare (excluding the max_hash row that Rust adds)
+                assert_eq!(
+                    rust_result[..rust_result.len() - 1],
+                    py_result_list[..],
+                    "Rust permute_hashes doesn't match Python"
+                );
+            });
+        }
+
+        #[test]
+        fn test_embed_func_against_python() {
+            pyo3::Python::attach(|py| {
+                let minhash_module = PyModule::import(py, "text_dedup.minhash")
+                    .expect("Failed to import minhash module");
+
+                let embed_fn = minhash_module
+                    .getattr("embed_func")
+                    .expect("Failed to get embed_func");
+                let sha1_hash_fn = minhash_module
+                    .getattr("sha1_hash")
+                    .expect("Failed to get sha1_hash");
+                let numpy = PyModule::import(py, "numpy").expect("Failed to import numpy");
+
+                // Test parameters
+                let content = "hello world";
+                let num_perm = 250;
+                let ngram_size = 1;
+                let min_length = 0;
+                let max_hash: u64 = (1u64 << 32) - 1;
+                let modulo_prime: u64 = (1u64 << 61) - 1;
+
+                let (a, b) = generate_permutations(MODULE_PRIME as usize, num_perm);
+
+                let hash_ranges: Vec<(u32, u32)> =
+                    (0..10).map(|i| (i * 25, (i + 1) * 25)).collect();
+
+                // Create numpy arrays for a and b
+                let np_a = numpy
+                    .getattr("array")
+                    .unwrap()
+                    .call1((a.clone(),))
+                    .unwrap()
+                    .call_method1("astype", (numpy.getattr("uint64").unwrap(),))
+                    .unwrap();
+
+                let np_b = numpy
+                    .getattr("array")
+                    .unwrap()
+                    .call1((b.clone(),))
+                    .unwrap()
+                    .call_method1("astype", (numpy.getattr("uint64").unwrap(),))
+                    .unwrap();
+
+                // Create hash ranges as list of tuples
+                let py_hash_ranges = PyList::new(
+                    py,
+                    hash_ranges.iter().map(|(start, end)| (*start, *end)),
+                )
+                .unwrap();
+
+                // Call Python function
+                let py_kwargs = PyDict::new(py);
+                py_kwargs.set_item("num_perm", num_perm).unwrap();
+                py_kwargs.set_item("ngram_size", ngram_size).unwrap();
+                py_kwargs.set_item("min_length", min_length).unwrap();
+                py_kwargs.set_item("hashranges", py_hash_ranges).unwrap();
+                py_kwargs
+                    .set_item("permutations", (np_a, np_b))
+                    .unwrap();
+                py_kwargs.set_item("hash_func", sha1_hash_fn).unwrap();
+                py_kwargs
+                    .set_item("dtype", numpy.getattr("uint32").unwrap())
+                    .unwrap();
+                py_kwargs.set_item("max_hash", max_hash).unwrap();
+                py_kwargs.set_item("modulo_prime", modulo_prime).unwrap();
+
+                let py_result = embed_fn
+                    .call((content, 0), Some(&py_kwargs))
+                    .expect("Failed to call Python embed_func");
+
+                // Python embed_func returns a dict, not an object with attributes
+                let py_signatures: Vec<Vec<u8>> = py_result
+                    .get_item("__signatures__")
+                    .unwrap()
+                    .extract()
+                    .expect("Failed to extract signatures");
+
+                // Call Rust function
+                let rust_result = py_embed_func(
+                    content,
+                    &ngram_size,
+                    &(&a, &b),
+                    &hash_ranges,
+                    &min_length,
+                );
+
+                // Compare
+                assert_eq!(
+                    rust_result, py_signatures,
+                    "Rust embed_func doesn't match Python"
+                );
+
+                std::env::remove_var("DETERMINISTIC");
+            });
+        }
+    }
+
     #[test]
     fn test_embed_fn() {
         let num_perm = 200;
@@ -246,7 +492,13 @@ mod tests {
         let hash_ranges: Vec<(u32, u32)> = (0..b).map(|i| (i * r, (i + 1) * r)).collect();
         let n = 2;
         let text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.";
-        py_embed_func(text, &n, &permutations, &hash_ranges, &5);
+        py_embed_func(
+            text,
+            &n,
+            &(&permutations.0, &permutations.1),
+            &hash_ranges,
+            &5,
+        );
     }
     #[test]
     fn test_split_text() {
@@ -377,8 +629,8 @@ mod tests {
     fn test_function_permute_hash() {
         let original_hashvalues: Vec<u32> = vec![3201882886, 3634006389];
         // note this computes element wise and is meant for testing
-        let a: ArcArray1<u32> = ArcArray1::from(vec![3143890027, 3348747336]);
-        let b: ArcArray1<u32> = ArcArray1::from(vec![2571218620, 2563451924]);
+        let a: Vec<u32> = vec![3143890027, 3348747336];
+        let b: Vec<u32> = vec![2571218620, 2563451924];
         let max_hash: u32 = u32::MAX;
         let modulo_prime: u32 = u32::MAX - 4;
         let new_hashvalues = permute_hashes(original_hashvalues, &a, &b, modulo_prime, max_hash);
@@ -394,8 +646,8 @@ mod tests {
     #[test]
     fn test_min_hash_original() {
         let original_hashvalues: Vec<u32> = vec![3201882886, 3634006389];
-        let a: ArcArray1<u32> = ArcArray1::from(vec![3143890027, 3348747336]);
-        let b: ArcArray1<u32> = ArcArray1::from(vec![2571218620, 2563451924]);
+        let a: Vec<u32> = vec![3143890027, 3348747336];
+        let b: Vec<u32> = vec![2571218620, 2563451924];
         let max_hash: u32 = u32::MAX;
         let modulo_prime: u32 = u32::MAX - 4;
         let result: Vec<Vec<u32>> =
@@ -412,8 +664,8 @@ mod tests {
             684415160, 659044179, 971394434, 2591406015, 1557223710, 827156816, 3839636002,
             1313217433, 334402827, 3601442597,
         ];
-        let a: ArcArray1<u64> = ArcArray1::from(vec![2297359619001564596, 1396682528897996047]);
-        let b: ArcArray1<u64> = ArcArray1::from(vec![1973689801170867271, 1819927849474927636]);
+        let a: Vec<u64> = vec![2297359619001564596, 1396682528897996047];
+        let b: Vec<u64> = vec![1973689801170867271, 1819927849474927636];
         let max_hash: u64 = (1u64 << 32) - 1;
         let modulo_prime: u64 = (1u64 << 61) - 1;
         let result = min_hash_fused(&original_hashvalues, &a, &b, modulo_prime, max_hash);
@@ -447,20 +699,20 @@ mod tests {
         // from python
         assert_eq!(tokens.len(), 19775);
         let hashvalues = hash_tokens(tokens);
-        let a: ArcArray1<u64> = ArcArray1::from(vec![
+        let a: Vec<u64> = vec![
             2297359619001564596,
             1396682528897996047,
             1973689801170867272,
             1819927849474927637,
             572192888165898362,
-        ]);
-        let b: ArcArray1<u64> = ArcArray1::from(vec![
+        ];
+        let b: Vec<u64> = vec![
             571748048327668950,
             1071453510346823114,
             2143071682933157236,
             1865242737500154727,
             1532418594269339778,
-        ]);
+        ];
         let max_hash: u64 = (1u64 << 32) - 1;
         let modulo_prime: u64 = (1u64 << 61) - 1;
         let result = min_hash_fused(&hashvalues, &a, &b, modulo_prime, max_hash);
