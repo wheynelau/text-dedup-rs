@@ -7,7 +7,6 @@ use std::{
     collections::{HashMap, HashSet},
     fs::File,
     path::Path,
-    sync::{Arc, Mutex},
 };
 
 mod args;
@@ -54,12 +53,14 @@ fn batch_add(hashes: Vec<Bytes>, key: u32, hash_tables: &mut HashTable) {
 }
 
 fn cluster(hash_tables: HashTable) -> union::UnionFind {
-    let uf = union::UnionFind::new();
-    let uf = Arc::new(Mutex::new(uf));
+    let mut uf = union::UnionFind::new();
+    // Disable rayon for testing
 
     hash_tables.iter().for_each(|table| {
         // Lock the table to read its contents
-        let mut uf = uf.lock().unwrap(); // Lock the UnionFind for each operation
+
+        // BTreeMap iteration is deterministic (sorted by key)
+        // BTreeSet iteration is also deterministic (sorted)
         for cluster in table.values() {
             if cluster.len() <= 1 {
                 continue;
@@ -71,11 +72,7 @@ fn cluster(hash_tables: HashTable) -> union::UnionFind {
         }
     });
 
-    // Extract the UnionFind from Arc<Mutex<>>. This is safe because no other threads are using it now.
-    Arc::try_unwrap(uf)
-        .expect("Failed to unwrap Arc")
-        .into_inner()
-        .unwrap()
+    uf
 }
 
 fn generate_hash_rangs(b: u32, r: u32) -> Vec<(u32, u32)> {
