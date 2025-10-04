@@ -10,31 +10,38 @@ readme = "README.md"
 [lib]
 name = "dedup_rs"
 path = "src/lib.rs"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "dedup"
 path = "src/dedup.rs"
 
+[[test]]
+name = "integration"
+path = "rust-tests/integration_test.rs"
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
 
 [dependencies]
-pyo3 = "0.24.0"
+pyo3 = "0.26.0"
 rand = { version = "0.9.0", features = ["small_rng"] }
 sha1 = "0.10.6"
-regex = "1.11.1"
+regex = "1.11.3"
 rayon = "1.10.0"
-hex = "0.4.3"
 lazy_static = "1.5.0"
-base64 = "0.22.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-arrow = "54.2.1"
-parquet = { version = "54.2.1" }
+arrow = "56.2.0"
+parquet = { version = "56.2.0" }
 clap = { version = "4.5.32", features = ["derive"] }
 byteorder = "1.5.0"
 sha3 = "0.10.8"
 ndarray = { version = "0.16.1", features = ["rayon"] }
 num-traits = "0.2.19"
+numpy = "0.26.0"
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.7.0", features = ["html_reports"] }
+pyo3 = { version = "0.26.0", features = ["auto-initialize"] }
