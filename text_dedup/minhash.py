@@ -43,6 +43,141 @@ uf = UnionFind()
 SIGNATURE_COLUMN = "__signatures__"
 
 
+def tokenize_content(content: str, ngram_size: int, min_length: int) -> set[bytes]:
+    """
+    Tokenize content into n-gram byte tokens.
+
+    Parameters
+    ----------
+    content : str
+        The content to tokenize.
+    ngram_size : int
+        The size of n-grams.
+    min_length : int
+        The minimum length of the document in terms of tokens.
+
+    Returns
+    -------
+    set[bytes]
+        Set of unique n-gram tokens as byte strings.
+    """
+    tokens: set[bytes] = {
+        bytes(" ".join(t).lower(), "utf-8") for t in ngrams(NON_ALPHA.split(content.lower()), ngram_size, min_length)
+    }
+    return tokens
+
+
+def compute_base_hashes(tokens: set[bytes], hash_func: Callable, dtype: type) -> np.ndarray:
+    """
+    Compute base hash values for tokens.
+
+    Parameters
+    ----------
+    tokens : set[bytes]
+        Set of tokens to hash.
+    hash_func : Callable
+        The hash function to use.
+    dtype : type
+        The numpy dtype for hash values.
+
+    Returns
+    -------
+    np.ndarray
+        Array of hash values with shape (len(tokens), 1).
+    """
+    hashvalues: np.ndarray = np.array([hash_func(token) for token in tokens], dtype=dtype).reshape(len(tokens), 1)
+    return hashvalues
+
+
+def permute_hashes(
+    hashvalues: np.ndarray,
+    a: np.ndarray,
+    b: np.ndarray,
+    modulo_prime: np.uint,
+    max_hash: np.uint,
+) -> np.ndarray:
+    """
+    Permute hash values to produce new universal hashes.
+
+    Parameters
+    ----------
+    hashvalues : np.ndarray
+        Base hash values with shape (n_tokens, 1).
+    a : np.ndarray
+        Multiplier coefficients for permutation.
+    b : np.ndarray
+        Additive coefficients for permutation.
+    modulo_prime : np.uint
+        Prime number for modulo operation.
+    max_hash : np.uint
+        Maximum hash value for bitwise AND.
+
+    Returns
+    -------
+    np.ndarray
+        Permuted hash values with shape (n_tokens, num_perm).
+    """
+    # Element-wise multiplication with 'hashvalues' and a (non 0 random value) and then adding b
+    # Then, take modulo 'MODULO_PRIME' and bitwise_and with 'MAX_HASH' to keep only the necessary bits.
+    hashvalues = (hashvalues * a + b) % modulo_prime & max_hash
+    return hashvalues
+
+
+def compute_minhash_signature(
+    hashvalues: np.ndarray,
+    num_perm: int,
+    dtype: type,
+    max_hash: np.uint,
+) -> np.ndarray:
+    """
+    Compute minhash signature by taking minimum hash values.
+
+    Parameters
+    ----------
+    hashvalues : np.ndarray
+        Permuted hash values with shape (n_tokens, num_perm).
+    num_perm : int
+        Number of permutations.
+    dtype : type
+        The numpy dtype for hash values.
+    max_hash : np.uint
+        Maximum hash value used as fill value for mask.
+
+    Returns
+    -------
+    np.ndarray
+        Minhash signature with shape (num_perm,).
+    """
+    # this part is where the name "min" of minhash comes from
+    # this stacks all the hashes and then takes the minimum from each column
+    masks: np.ndarray = np.full(shape=num_perm, dtype=dtype, fill_value=max_hash)
+    hashvalues = np.vstack([hashvalues, masks]).min(axis=0)
+    return hashvalues
+
+
+def create_band_hashes(signature: np.ndarray, hashranges: list[tuple[int, int]]) -> list[bytes]:
+    """
+    Create band hashes from minhash signature.
+
+    Parameters
+    ----------
+    signature : np.ndarray
+        Minhash signature with shape (num_perm,).
+    hashranges : list[tuple[int, int]]
+        The ranges of hash values for each band.
+
+    Returns
+    -------
+    list[bytes]
+        List of band hashes as byte strings.
+    """
+    # Originally, byteswap was done for speed. Testing show it has a negligible impact
+    # keeping  for backward compatibility, even though theoretically and empirically
+    # it doesnt matter if it is there or not.
+    Hs: list[bytes] = [bytes(signature[start:end].byteswap().data) for start, end in hashranges]
+    return Hs
+
+
 def embed_func(
     content: str,
     idx: int,
@@ -115,25 +250,22 @@ def embed_func(
     # a, b are each np.ndarray arrays containing {num_perm} pairs of random numbers used for building new hashes
     # the formula is a * x(base hash of each shingle) + b
     a, b = permutations
-    # split content on whitespace (NON_ALPHA regex), tokenize with ngrams(), and join these n-grams into a single space separated string.
-    # we then convert to lower case and then bytestrings which is then hashed. Only unique hashed n-grams are left.
-    tokens: set[bytes] = {
-        bytes(" ".join(t).lower(), "utf-8") for t in ngrams(NON_ALPHA.split(content.lower()), ngram_size, min_length)
-    }
 
-    hashvalues: np.ndarray = np.array([hash_func(token) for token in tokens], dtype=dtype).reshape(len(tokens), 1)
+    # Tokenize content into n-grams
+    tokens = tokenize_content(content, ngram_size, min_length)
+
+    # Compute base hashes for tokens
+    hashvalues = compute_base_hashes(tokens, hash_func, dtype)
+
     # Permute the hash values to produce new universal hashes
-    # Element-wise multiplication with 'hashvalues' and a (non 0 random value) and then adding b
-    # Then, take modulo 'MODULO_PRIME' and bitwise_and with 'MAX_HASH' to keep only the necessary bits.
-    hashvalues = (hashvalues * a + b) % modulo_prime & max_hash
-    # this part is where the name "min" of minhash comes from
-    # this stacks all the hashes and then takes the minimum from each column
-    masks: np.ndarray = np.full(shape=num_perm, dtype=dtype, fill_value=max_hash)
-    hashvalues = np.vstack([hashvalues, masks]).min(axis=0)
-    # Originally, byteswap was done for speed. Testing show it has a negligible impact
-    # keeping  for backward compatibility, even though theoretically and empirically
-    # it doesnt matter if it is there or not.
-    Hs: list[bytes] = [bytes(hashvalues[start:end].byteswap().data) for start, end in hashranges]
+    hashvalues = permute_hashes(hashvalues, a, b, modulo_prime, max_hash)
+
+    # Compute minhash signature
+    signature = compute_minhash_signature(hashvalues, num_perm, dtype, max_hash)
+
+    # Create band hashes
+    Hs = create_band_hashes(signature, hashranges)
+
     return {SIGNATURE_COLUMN: Hs, INDEX_COLUMN: idx}
 
 
