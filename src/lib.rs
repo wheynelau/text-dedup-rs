@@ -1,6 +1,7 @@
 use numpy::PyReadonlyArrayDyn;
 use pyo3::{prelude::*, types::PyType};
 use rayon::prelude::*;
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 mod args;
@@ -14,6 +15,39 @@ pub use union::UnionFind;
 const MODULE_PRIME: u64 = (1u64 << 61) - 1;
 type Bytes = Vec<u8>;
 
+/// Input sequence types for efficient string handling
+#[derive(Debug, Clone)]
+pub enum InputSequence<'s> {
+    /// Borrowed string slice
+    Borrowed(Cow<'s, str>),
+    /// Owned string
+    Owned(String),
+}
+
+impl<'s> From<&'s str> for InputSequence<'s> {
+    fn from(s: &'s str) -> Self {
+        Self::Borrowed(Cow::Borrowed(s))
+    }
+}
+
+impl From<String> for InputSequence<'_> {
+    fn from(s: String) -> Self {
+        Self::Owned(s)
+    }
+}
+
+impl InputSequence<'_> {
+    /// Get the string slice, borrowing when possible
+    #[inline]
+    #[allow(dead_code)]
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Borrowed(cow) => cow.as_ref(),
+            Self::Owned(s) => s.as_str(),
+        }
+    }
+}
+
 fn get_chunk_size() -> usize {
     std::env::var("CHUNK_SIZE")
         .ok()
@@ -23,7 +57,9 @@ fn get_chunk_size() -> usize {
 #[pyclass]
 struct EmbedFunc {
     hash_values: Vec<(u32, u32)>,
+    #[allow(dead_code)]
     main_col: String,
+    #[allow(dead_code)]
     idx_col: String,
     n_grams: u32,
     #[pyo3(get)]
@@ -31,6 +67,7 @@ struct EmbedFunc {
     #[pyo3(get)]
     edges: Vec<(u32, u32)>,
     permutations: [Vec<u64>; 2],
+    #[allow(dead_code)]
     dtype: Option<String>,
     min_len: Option<u32>,
 }
@@ -179,30 +216,52 @@ impl EmbedFunc {
     ///
     /// This function embeds the text and adds the signature to the hash table
     ///
-    fn batch_embed_shard<'py>(&mut self, text: Vec<String>, idx: PyReadonlyArrayDyn<'py, u32>) {
-        let idx = idx.as_array();
+    /// Optimized version using borrowed string slices and releasing the GIL for parallel processing
+    ///
+    fn batch_embed_shard<'py>(
+        &mut self,
+        py: Python<'py>,
+        text: Vec<String>,
+        idx: PyReadonlyArrayDyn<'py, u32>,
+    ) {
         let min_len = self.min_len.unwrap_or(5); // Default to 5 if min_len is None
         let chunk_size = get_chunk_size();
         let idx_slice = idx.as_slice().unwrap();
 
-        let text_idx: Vec<(Vec<Vec<u8>>, u32)> = text
-            .par_chunks(chunk_size)
-            .zip(idx_slice.par_chunks(chunk_size))
-            .flat_map(|(text_chunk, idx_chunk)| {
-                text_chunk.iter()
-                    .zip(idx_chunk.iter())
-                    .map(|(s, &i)| {
-                        let (a, b) = (&self.permutations[0], &self.permutations[1]);
-                        let mapped = embed::py_embed_func(s, &self.n_grams, &(a, b), &self.hash_values, &min_len);
-                        (mapped, i)
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect();
+        let n_grams = self.n_grams;
+        let permutations_a = &self.permutations[0];
+        let permutations_b = &self.permutations[1];
 
-        text_idx.into_iter().for_each(|(sig, i)| {
-            self.batch_add(sig, i);
+        
+        // release GIL
+        let text_idx: Vec<(Vec<Vec<u8>>, u32)> = py.detach(|| {
+            text.par_chunks(chunk_size)
+                .zip(idx_slice.par_chunks(chunk_size))
+                .flat_map(|(text_chunk, idx_chunk)| {
+                    // Pre-allocate the result vector for this chunk
+                    let mut chunk_results = Vec::with_capacity(text_chunk.len());
+
+                    for (s, &i) in text_chunk.iter().zip(idx_chunk.iter()) {
+                        // Use as_str() to work with &str instead of &String
+                        let mapped = embed::py_embed_func(
+                            s.as_str(),
+                            &n_grams,
+                            &(permutations_a, permutations_b),
+                            &self.hash_values,
+                            &min_len,
+                        );
+                        chunk_results.push((mapped, i));
+                    }
+                    chunk_results
+                })
+                .collect()
         });
+
+        // GIL is automatically reacquired here
+        // Batch insert into hash tables
+        for (sig, i) in text_idx {
+            self.batch_add(sig, i);
+        }
     }
     ///
     /// Cluster the hash tables
@@ -233,6 +292,7 @@ impl EmbedFunc {
     ///
     /// # Arguments
     ///
+    /// * `py` - Python GIL token
     /// * `uf` - The UnionFind data structure
     /// * `indices` - Array of document indices
     ///
@@ -242,6 +302,7 @@ impl EmbedFunc {
     ///
     fn filter_duplicates<'py>(
         &self,
+        py: Python<'py>,
         mut uf: union::UnionFind,
         indices: PyReadonlyArrayDyn<'py, u32>,
     ) -> Vec<usize> {
@@ -253,23 +314,27 @@ impl EmbedFunc {
             .map(|&idx| uf.find(idx as usize) as u32)
             .collect();
 
-        // Chunk-based parallel filtering for better cache locality
+        let indices_owned = indices_slice;
         let chunk_size = get_chunk_size();
-        clusters
-            .par_chunks(chunk_size)
-            .zip(indices_slice.par_chunks(chunk_size))
-            .enumerate()
-            .flat_map(|(chunk_idx, (cluster_chunk, idx_chunk))| {
-                let base_pos = chunk_idx * chunk_size;
-                cluster_chunk
-                    .iter()
-                    .zip(idx_chunk.iter())
-                    .enumerate()
-                    .filter(|(_, (&cluster, &idx))| cluster == idx)
-                    .map(move |(i, _)| base_pos + i)
-                    .collect::<Vec<_>>()
-            })
-            .collect()
+
+        let result = py.detach(|| {
+            clusters
+                .par_chunks(chunk_size)
+                .zip(indices_owned.par_chunks(chunk_size))
+                .enumerate()
+                .flat_map(|(chunk_idx, (cluster_chunk, idx_chunk))| {
+                    let base_pos = chunk_idx * chunk_size;
+                    cluster_chunk
+                        .iter()
+                        .zip(idx_chunk.iter())
+                        .enumerate()
+                        .filter(|(_, (&cluster, &idx))| cluster == idx)
+                        .map(move |(i, _)| base_pos + i)
+                        .collect::<Vec<_>>()
+                })
+                .collect()
+        });
+        result
     }
 }
 ///
