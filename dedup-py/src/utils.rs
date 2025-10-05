@@ -1,4 +1,3 @@
-use crate::Sig;
 use numpy::PyReadonlyArrayDyn;
 use pyo3::{prelude::*, types::PyType};
 use std::collections::HashMap;
