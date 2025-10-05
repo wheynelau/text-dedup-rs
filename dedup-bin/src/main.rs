@@ -80,13 +80,9 @@ fn batch_add(hashes: Vec<Bytes>, key: u32, hash_tables: &mut HashTable) {
 
 fn cluster(hash_tables: HashTable) -> UnionFind {
     let mut uf = UnionFind::new();
-    // Disable rayon for testing
 
     hash_tables.iter().for_each(|table| {
-        // Lock the table to read its contents
 
-        // BTreeMap iteration is deterministic (sorted by key)
-        // BTreeSet iteration is also deterministic (sorted)
         for cluster in table.values() {
             if cluster.len() <= 1 {
                 continue;
@@ -137,17 +133,17 @@ fn main() {
     let file = File::open(path).unwrap();
     let builder = ParquetRecordBatchReaderBuilder::try_new(file).unwrap();
 
+    // Get total row count from metadata before building the reader
+    let total_len = builder.metadata().file_metadata().num_rows() as usize;
+
     let reader = builder
-        .with_row_groups(vec![0])
         .with_batch_size(100000)
         .build()
         .unwrap();
     let mut signatures: Vec<String> = Vec::with_capacity(1000000);
     let mut indices: Vec<u32> = Vec::with_capacity(1000000);
-    let mut total_len = 0;
     for result in reader {
         let batch = result.unwrap();
-        total_len += batch.num_rows();
         let (sigs, idxs) = process_batch(&batch, &args.main_col, &args.idx_col);
         signatures.extend(sigs.iter().map(|x| x.unwrap().to_string()));
         indices.extend(idxs.iter().map(|x| x.unwrap() as u32));
@@ -212,20 +208,27 @@ fn main() {
             .collect()
     };
 
-    // filter
-
+    // Filter to keep only cluster representatives (where cluster_id == original_idx)
+    // This ensures we keep one representative document from each duplicate cluster
     let chunk_size = get_chunk_size();
     let final_vec: Vec<(String, u32)> = cluster_column
         .par_chunks(chunk_size)
         .zip(indices.par_chunks(chunk_size))
         .zip(signatures.par_chunks(chunk_size))
         .flat_map(|((cluster_chunk, idx_chunk), sig_chunk)| {
+            // Iterate over (cluster_id, original_idx, signature) tuples
             cluster_chunk
                 .iter()
                 .zip(idx_chunk.iter())
                 .zip(sig_chunk.iter())
-                .filter(|((cluster, idx), _text)| cluster == idx)
-                .map(|((_, idx), text)| (text.clone(), *idx))
+                .filter_map(|((&cluster_id, &original_idx), signature)| {
+                    // Keep only items where the cluster representative matches the original index
+                    if cluster_id == original_idx {
+                        Some((signature.clone(), original_idx))
+                    } else {
+                        None
+                    }
+                })
                 .collect::<Vec<_>>()
         })
         .collect();
