@@ -82,7 +82,6 @@ fn cluster(hash_tables: HashTable) -> UnionFind {
     let mut uf = UnionFind::new();
 
     hash_tables.iter().for_each(|table| {
-
         for cluster in table.values() {
             if cluster.len() <= 1 {
                 continue;
