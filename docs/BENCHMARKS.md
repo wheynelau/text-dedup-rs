@@ -4,6 +4,7 @@
   - [Benchmark core](#benchmark-core)
   - [Benchmark news](#benchmark-news)
   - [Benchmark RP](#benchmark-rp)
+    - [Notes](#notes)
 
 ## Benchmark core
 
@@ -29,37 +30,57 @@ MinHash Pure RS ARI: 0.7244780630042161
 
 ## Benchmark RP
 
+This was done on 32 cores. 
+
 This dataset has no validation, only used for throughput testing, noticed that values are quite different when the dataset  
 is bigger.
 
 Pure rust
 
-INFO     Total                           : 88.87s
+INFO     Total                           : 99.18s
 INFO     Before                          : 930514
-INFO     After                           : 439944 
+INFO     After                           : 440235
 
 Rust from datasets  
 
-INFO     Loading                         : 16.46s
-INFO     Fused embedding, sharding       : 77.86s
-INFO     Clustering                      : 0.39s
-INFO     Filtering                       : 4.47s
-INFO     Saving                          : 1.45s
-INFO     Cleaning                        : 0.15s
-INFO     Total                           : 100.78s
+INFO     Loading                         : 24.28s
+INFO     Fused embedding, sharding       : 82.48s
+INFO     Clustering                      : 4.14s
+INFO     Filtering                       : 3.75s
+INFO     Saving                          : 3.73s
+INFO     Cleaning                        : 0.03s
+INFO     Total                           : 118.40s
 INFO     Before                          : 930460
-INFO     After                           : 439943
+INFO     After                           : 440234
 
 Original python  
 
-INFO     Loading                         : 16.71s
-INFO     MinHashing                      : 117.59s
-INFO     Sharding                        : 75.02s
-INFO     Clustering                      : 3.94s
-INFO     Filtering                       : 4.76s
-INFO     Saving                          : 1.35s
-INFO     Cleaning                        : 0.17s
-INFO     Total                           : 219.53s
+INFO     Loading                         : 27.89s
+INFO     MinHashing                      : 158.43s
+INFO     Sharding                        : 84.81s
+INFO     Clustering                      : 5.78s
+INFO     Filtering                       : 49.43s
+INFO     Saving                          : 3.58s
+INFO     Cleaning                        : 0.04s 
+INFO     Total                           : 329.96s
 INFO     Before                          : 930460
 INFO     After                           : 440263
+
+### Notes
+
+1. The difference in Before is due to the python code checking the length of the dataset after filtering out the min_length, as shown in the code:
+```python
+        with timer("Loading"):
+            ds, id2id = load_hf_dataset(io_args=io_args, meta_args=meta_args)
+            ds = ds.filter(
+                lambda x: len(NON_ALPHA.split(x[meta_args.column].lower())) >= minhash_args.min_length,
+                num_proc=io_args.num_proc,
+            )
+
+        LEN_DATASET = len(ds)
+```
+
+2. The differences in the values are still present, but not as significant, further testing needed.
+
+Perhaps testing with another framework would help.
 

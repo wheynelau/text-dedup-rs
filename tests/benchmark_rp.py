@@ -16,7 +16,7 @@ from text_dedup.utils import Timer
 NUM_PROC = min(os.cpu_count(), len(os.sched_getaffinity(0)))
 
 DATASET = "togethercomputer/RedPajama-Data-1T-Sample"
-PARQUET_PATH = "temp_files/temp_inp_paruqet/data.parquet"
+PARQUET_PATH = "temp_files/temp_inp_parquet/data.parquet"
 if __name__ == "__main__":
     t = Timer()
 
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     ds.save_to_disk("temp_files/temp_inp_ds")
 
     logger.info("Saving dataset to parquet")
-    os.makedirs("temp_files/temp_inp_paruqet", exist_ok=True)
+    os.makedirs(os.path.dirname(PARQUET_PATH), exist_ok=True)
     (ds.to_pandas().to_parquet(PARQUET_PATH))
     logger.warning("This benchmark has no validation, and is purely for memory and speed benchmarking.")
 
