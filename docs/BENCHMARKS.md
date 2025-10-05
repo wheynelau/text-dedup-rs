@@ -24,9 +24,9 @@ Rust 3.21s
 
 ## Benchmark news
 
-MinHash ARI: 0.7228948156767026
-MinRust ARI: 0.7244780630042161
-MinHash Pure RS ARI: 0.7244780630042161
+MinHash ARI: 0.7228948156767026  
+MinRust ARI: 0.7244780630042161  
+MinHash Pure RS ARI: 0.7244780630042161  
 
 ## Benchmark RP
 
@@ -37,34 +37,34 @@ is bigger.
 
 Pure rust
 
-INFO     Total                           : 99.18s
-INFO     Before                          : 930514
-INFO     After                           : 440235
+INFO     Total                           : 99.18s  
+INFO     Before                          : 930514  
+INFO     After                           : 440235  
 
 Rust from datasets  
 
-INFO     Loading                         : 24.28s
-INFO     Fused embedding, sharding       : 82.48s
-INFO     Clustering                      : 4.14s
-INFO     Filtering                       : 3.75s
-INFO     Saving                          : 3.73s
-INFO     Cleaning                        : 0.03s
-INFO     Total                           : 118.40s
-INFO     Before                          : 930460
-INFO     After                           : 440234
+INFO     Loading                         : 24.28s  
+INFO     Fused embedding, sharding       : 82.48s  
+INFO     Clustering                      : 4.14s  
+INFO     Filtering                       : 3.75s  
+INFO     Saving                          : 3.73s  
+INFO     Cleaning                        : 0.03s  
+INFO     Total                           : 118.40s  
+INFO     Before                          : 930460  
+INFO     After                           : 440234  
 
 Original python  
 
-INFO     Loading                         : 27.89s
-INFO     MinHashing                      : 158.43s
-INFO     Sharding                        : 84.81s
-INFO     Clustering                      : 5.78s
-INFO     Filtering                       : 49.43s
-INFO     Saving                          : 3.58s
-INFO     Cleaning                        : 0.04s 
-INFO     Total                           : 329.96s
-INFO     Before                          : 930460
-INFO     After                           : 440263
+INFO     Loading                         : 27.89s  
+INFO     MinHashing                      : 158.43s  
+INFO     Sharding                        : 84.81s  
+INFO     Clustering                      : 5.78s  
+INFO     Filtering                       : 49.43s  
+INFO     Saving                          : 3.58s  
+INFO     Cleaning                        : 0.04s   
+INFO     Total                           : 329.96s  
+INFO     Before                          : 930460  
+INFO     After                           : 440263  
 
 ### Notes
 
