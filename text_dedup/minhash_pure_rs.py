@@ -35,7 +35,7 @@ def main(
     timer = Timer()
     binary_path = "target/release/dedup"
     if not os.path.exists(binary_path):
-        command = "cargo build --release"
+        command = "cargo build --release -p dedup-bin"
         result = subprocess.run(command, capture_output=True, text=True, shell=True)
         if result.returncode != 0:
             print(result.stderr)

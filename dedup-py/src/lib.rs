@@ -1,9 +1,15 @@
-use dedup_core::{embed, utils};
+use dedup_core::{embed as coreembed, utils as coreutils};
 use numpy::PyReadonlyArrayDyn;
 use pyo3::{prelude::*, types::PyType};
 use rayon::prelude::*;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+
+pub mod embed;
+pub mod utils;
+
+use dedup_core::union::UnionFind as CoreUnionFind;
+use utils::UnionFind;
 
 const MODULE_PRIME: u64 = (1u64 << 61) - 1;
 type Bytes = Vec<u8>;
@@ -67,7 +73,7 @@ struct EmbedFunc {
 }
 
 #[derive(IntoPyObject, IntoPyObjectRef)]
-enum Sig {
+pub enum Sig {
     Signature(Vec<Vec<u8>>),
     Index(u32),
 }
@@ -99,7 +105,7 @@ impl EmbedFunc {
         dtype: Option<String>,
         min_len: Option<u32>,
     ) -> Self {
-        let (b, r) = utils::optimal_param(threshold, num_perm, false_positive, false_negative);
+        let (b, r) = coreutils::optimal_param(threshold, num_perm, false_positive, false_negative);
         Self::shared_init(b, r, n_grams, num_perm, main_col, idx_col, dtype, min_len)
     }
     ///
@@ -179,7 +185,7 @@ impl EmbedFunc {
 
         let hash_tables: Vec<HashMap<Vec<u8>, HashSet<u32>>> = vec![HashMap::new(); b as usize];
         let edges: Vec<(u32, u32)> = Vec::new();
-        let permutations = embed::generate_permutations(MODULE_PRIME as usize, num_perm);
+        let permutations = coreembed::generate_permutations(MODULE_PRIME as usize, num_perm);
         EmbedFunc {
             hash_values: hash_ranges,
             main_col: main_col.to_string(),
@@ -237,7 +243,7 @@ impl EmbedFunc {
 
                     for (s, &i) in text_chunk.iter().zip(idx_chunk.iter()) {
                         // Use as_str() to work with &str instead of &String
-                        let mapped = embed::py_embed_func(
+                        let mapped = coreembed::py_embed_func(
                             s.as_str(),
                             &n_grams,
                             &(permutations_a, permutations_b),
@@ -332,79 +338,6 @@ impl EmbedFunc {
     }
 }
 
-// Python wrapper for UnionFind
-use dedup_core::UnionFind as CoreUnionFind;
-
-#[pyclass(name = "UnionFind")]
-#[derive(Clone)]
-struct UnionFind {
-    inner: CoreUnionFind,
-}
-
-#[pymethods]
-impl UnionFind {
-    #[new]
-    fn new() -> Self {
-        UnionFind {
-            inner: CoreUnionFind::new(),
-        }
-    }
-
-    #[classmethod]
-    fn load(_cls: &Bound<'_, PyType>, path: &str) -> PyResult<Self> {
-        let inner = CoreUnionFind::load(path).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to load: {}", e))
-        })?;
-        Ok(UnionFind { inner })
-    }
-
-    fn find(&mut self, x: usize) -> usize {
-        self.inner.find(x)
-    }
-
-    #[pyo3(name = "batch_find")]
-    fn batch_find<'py>(
-        mut slf: PyRefMut<'py, Self>,
-        batched_idx: PyReadonlyArrayDyn<'py, u32>,
-    ) -> Vec<usize> {
-        let batched_idx = batched_idx.as_array();
-        let results: Vec<usize> = batched_idx
-            .iter()
-            .map(|&x| slf.inner.find(x as usize))
-            .collect();
-        results
-    }
-
-    fn union(&mut self, x: usize, y: usize) {
-        self.inner.union(x, y);
-    }
-
-    fn reset(&mut self) {
-        self.inner.reset();
-    }
-
-    fn dump(&self, path: &str) -> PyResult<()> {
-        self.inner.dump(path).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to dump: {}", e))
-        })
-    }
-
-    #[getter]
-    fn parent(&self) -> HashMap<usize, usize> {
-        self.inner.parent.clone()
-    }
-
-    #[getter]
-    fn rank(&self) -> HashMap<usize, usize> {
-        self.inner.rank.clone()
-    }
-
-    #[getter]
-    fn edges(&self) -> usize {
-        self.inner.edges
-    }
-}
-
 ///
 /// def embed_func(
 // content: str,
@@ -431,7 +364,8 @@ fn embed_func(
 ) -> HashMap<String, Sig> {
     let hash_ranges: Vec<(u32, u32)> = hashranges;
     let (a, b) = (&permutations.0, &permutations.1);
-    let hashes = embed::py_embed_func(&content, &ngram_size, &(a, b), &hash_ranges, &min_length);
+    let hashes =
+        coreembed::py_embed_func(&content, &ngram_size, &(a, b), &hash_ranges, &min_length);
     let mut result = HashMap::new();
     result.insert("__signatures__".to_string(), Sig::Signature(hashes));
     let idx = idx.unwrap_or(0);

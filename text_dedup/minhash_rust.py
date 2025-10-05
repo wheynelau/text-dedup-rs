@@ -143,10 +143,11 @@ def main(
             uf = Emb.cluster()
 
         with timer("Filtering"), DisableReferenceCount():
+            # use rust to filter
             indices_array = np.array(ds[INDEX_COLUMN], dtype=np.uint32)
             keep_positions = Emb.filter_duplicates(uf, indices_array)
 
-            # Use .select() which is much faster than .map() + .filter()
+            # use .select() which is much faster than .map() + .filter()
             final_data = ds.select(keep_positions)
             logger.info(f"Number of edges: {uf.edges}")
 
