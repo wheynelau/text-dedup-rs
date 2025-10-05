@@ -1,6 +1,10 @@
 # Optimising Text Deduplication in Rust
 
 This is a Rust port of the [text-dedup](https://github.com/ChenghaoMou/text-dedup) project.
+
+**Note:** This repository uses [dedup-rs](https://github.com/wheynelau/dedup-rs) as a git submodule for the Rust CLI binary. The Python bindings are published separately to PyPI from the dedup-rs repository. Use both repositories in conjunction:
+- [dedup-rs](https://github.com/wheynelau/dedup-rs) - Rust implementation
+- [text-dedup-rs](https://github.com/wheynelau/text-dedup-rs) - Python package (this repo)
 - [Optimising Text Deduplication in Rust](#optimising-text-deduplication-in-rust)
   - [Description](#description)
   - [How to run](#how-to-run)
@@ -17,23 +21,20 @@ It uses a minhash LSH algorithm to find similar documents.
 ## How to run
 
 ```bash
-# Install Rust if needed
-curl https://sh.rustup.rs -sSf | sh
+# Clone with submodule
+git clone --recurse-submodules https://github.com/wheynelau/text-dedup-rs
+# OR if already cloned:
+git submodule update --init
 
-# Build Python extension
+# Install Python package (Python bindings from PyPI)
 pip install .
 
-# Build standalone binary
-cargo build --release -p dedup-bin
+# Build Rust CLI binary (optional, only if using minhash_pure_rs.py)
+cd rust && cargo build --release -p dedup-bin
 
 # Run tests
 python tests/benchmark_core.py
 ```
-
-**Note:** This project uses a Cargo workspace with three crates:
-- `dedup-core`: Pure Rust library (shared code)
-- `dedup-py`: Python extension (requires `maturin`)
-- `dedup-bin`: Standalone binary (no Python dependency)
 
 ## Changes made to original code
 

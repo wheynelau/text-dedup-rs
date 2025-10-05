@@ -2,3 +2,6 @@
 path = deduplicate-text-datasets
 url = https://github.com/google-research/deduplicate-text-datasets.git
 ignore = all
+[submodule "rust"]
+	path = rust
+	url = https://github.com/wheynelau/dedup-rs.git

@@ -12,7 +12,7 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-    "dedup-rs>=0.3.0", # from pypi
+    "dedup-rs>=0.4.0", # from pypi
     "numpy>=1.26.4",
     "tqdm>=4.64.1",
     "datasets>=2.17.0, <4.0.0",
