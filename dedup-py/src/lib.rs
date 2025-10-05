@@ -93,6 +93,7 @@ impl EmbedFunc {
     /// * `main_col` - The name of the main column
     /// * `idx_col` - The name of the index column
     ///
+    #[allow(clippy::too_many_arguments)]
     #[new]
     fn new(
         threshold: f64,
@@ -119,6 +120,7 @@ impl EmbedFunc {
     /// * `main_col` - The name of the main column
     /// * `idx_col` - The name of the index column
     ///
+    #[allow(clippy::too_many_arguments)]
     #[classmethod]
     fn from_b_r(
         _cls: &Bound<'_, PyType>,
@@ -157,6 +159,7 @@ impl EmbedFunc {
             min_len: Some(min_len),
         }
     }
+    #[allow(clippy::too_many_arguments)]
     #[staticmethod]
     fn shared_init(
         b: u32,
