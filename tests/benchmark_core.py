@@ -24,7 +24,8 @@ from text_dedup.utils import Timer
 from text_dedup.utils import UnionFind
 from text_dedup.utils import UniSimArgs
 
-NUM_PROC = os.cpu_count()
+# os.cpu_count does not respect slurm job scheduler
+NUM_PROC = min(os.cpu_count(), len(os.sched_getaffinity(0)))
 
 
 def _recall(row):

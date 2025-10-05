@@ -20,7 +20,8 @@ from text_dedup.utils.preprocess import news_copy_preprocessing
 from text_dedup.utils.timer import Timer
 from text_dedup.utils.union_find import UnionFind
 
-NUM_PROC = os.cpu_count()
+# os.cpu_count does not respect slurm job scheduler
+NUM_PROC = min(os.cpu_count(), len(os.sched_getaffinity(0)))
 
 
 def prepare_data(dataset, output_path_ds, output_path_spark):

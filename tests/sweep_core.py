@@ -20,7 +20,8 @@ from text_dedup.utils import MetaArgs
 from text_dedup.utils import SimHashArgs
 from text_dedup.utils.timer import Timer
 
-NUM_PROC = os.cpu_count()
+# os.cpu_count does not respect slurm job scheduler
+NUM_PROC = min(os.cpu_count(), len(os.sched_getaffinity(0)))
 
 
 @contextmanager

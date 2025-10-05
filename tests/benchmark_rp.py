@@ -12,7 +12,9 @@ from text_dedup.utils import MetaArgs
 from text_dedup.utils import MinHashArgs
 from text_dedup.utils import Timer
 
-NUM_PROC = os.cpu_count()
+# os.cpu_count does not respect slurm job scheduler
+NUM_PROC = min(os.cpu_count(), len(os.sched_getaffinity(0)))
+
 DATASET = "togethercomputer/RedPajama-Data-1T-Sample"
 PARQUET_PATH = "temp_files/temp_inp_paruqet/data.parquet"
 if __name__ == "__main__":
