@@ -1,5 +1,6 @@
 use arrow::array::{Int64Array, RecordBatch, StringArray};
 use clap::Parser;
+use dedup_core::{embed, UnionFind};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use rayon::prelude::*;
 use serde_json::json;
@@ -9,16 +10,41 @@ use std::{
     path::Path,
 };
 
-mod args;
-mod embed;
-mod union;
-
-use args::Args;
-
 const MODULE_PRIME: u64 = 2u64.pow(61) - 1;
 
 type Bytes = Vec<u8>;
 type HashTable = Vec<HashMap<Vec<u8>, HashSet<u32>>>;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct Args {
+    #[arg(short, long, default_value = "50")]
+    pub b: u32,
+
+    #[arg(short, long, default_value = "4")]
+    pub r: u32,
+
+    #[arg(short, long, default_value = "200")]
+    pub num_perm: u32,
+
+    #[arg(short, long, default_value = "2")]
+    pub n_grams: u32,
+
+    #[arg(short, long, default_value = "text")]
+    pub main_col: String,
+
+    #[arg(short, long)]
+    pub parquet_path: String,
+
+    #[arg(short, long, default_value = "id")]
+    pub idx_col: String,
+
+    #[arg(short, long, default_value = "5")]
+    pub min_len: u32,
+
+    #[arg(short, long, default_value = "uf_output")]
+    pub uf_output: String,
+}
 
 fn get_chunk_size() -> usize {
     std::env::var("CHUNK_SIZE")
@@ -52,8 +78,8 @@ fn batch_add(hashes: Vec<Bytes>, key: u32, hash_tables: &mut HashTable) {
     });
 }
 
-fn cluster(hash_tables: HashTable) -> union::UnionFind {
-    let mut uf = union::UnionFind::new();
+fn cluster(hash_tables: HashTable) -> UnionFind {
+    let mut uf = UnionFind::new();
     // Disable rayon for testing
 
     hash_tables.iter().for_each(|table| {
@@ -165,7 +191,7 @@ fn main() {
 
     let start_time = std::time::Instant::now();
 
-    let mut uf: union::UnionFind = cluster(hash_tables);
+    let mut uf: UnionFind = cluster(hash_tables);
     let uf_path = Path::new(&args.uf_output);
     // create directory if it doesn't exist
     if let Some(parent) = uf_path.parent() {

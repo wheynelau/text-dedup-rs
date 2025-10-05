@@ -1,16 +1,9 @@
+use dedup_core::{embed, utils};
 use numpy::PyReadonlyArrayDyn;
 use pyo3::{prelude::*, types::PyType};
 use rayon::prelude::*;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-
-mod args;
-mod embed;
-mod union;
-mod utils;
-
-// Re-export for Rust tests
-pub use union::UnionFind;
 
 const MODULE_PRIME: u64 = (1u64 << 61) - 1;
 type Bytes = Vec<u8>;
@@ -54,6 +47,7 @@ fn get_chunk_size() -> usize {
         .and_then(|s| s.parse().ok())
         .unwrap_or(1000)
 }
+
 #[pyclass]
 struct EmbedFunc {
     hash_values: Vec<(u32, u32)>,
@@ -71,6 +65,7 @@ struct EmbedFunc {
     dtype: Option<String>,
     min_len: Option<u32>,
 }
+
 #[derive(IntoPyObject, IntoPyObjectRef)]
 enum Sig {
     Signature(Vec<Vec<u8>>),
@@ -232,7 +227,6 @@ impl EmbedFunc {
         let permutations_a = &self.permutations[0];
         let permutations_b = &self.permutations[1];
 
-        
         // release GIL
         let text_idx: Vec<(Vec<Vec<u8>>, u32)> = py.detach(|| {
             text.par_chunks(chunk_size)
@@ -271,8 +265,8 @@ impl EmbedFunc {
     /// A UnionFind data structure representing the clusters
     ///
     /// Iterates the hash tables and clusters the signatures
-    fn cluster(&mut self) -> union::UnionFind {
-        let mut uf = union::UnionFind::new();
+    fn cluster(&mut self) -> UnionFind {
+        let mut uf = CoreUnionFind::new();
         for table in &self.hash_tables {
             for cluster in table.values() {
                 if cluster.len() <= 1 {
@@ -285,7 +279,7 @@ impl EmbedFunc {
                 }
             }
         }
-        uf
+        UnionFind { inner: uf }
     }
     ///
     /// Filter duplicates using UnionFind and return indices to keep
@@ -303,7 +297,7 @@ impl EmbedFunc {
     fn filter_duplicates<'py>(
         &self,
         py: Python<'py>,
-        mut uf: union::UnionFind,
+        mut uf: UnionFind,
         indices: PyReadonlyArrayDyn<'py, u32>,
     ) -> Vec<usize> {
         let indices_slice = indices.as_slice().unwrap();
@@ -311,7 +305,7 @@ impl EmbedFunc {
         // Pre-compute all cluster assignments sequentially (find() is mutable)
         let clusters: Vec<u32> = indices_slice
             .iter()
-            .map(|&idx| uf.find(idx as usize) as u32)
+            .map(|&idx| uf.inner.find(idx as usize) as u32)
             .collect();
 
         let indices_owned = indices_slice;
@@ -337,6 +331,80 @@ impl EmbedFunc {
         result
     }
 }
+
+// Python wrapper for UnionFind
+use dedup_core::UnionFind as CoreUnionFind;
+
+#[pyclass(name = "UnionFind")]
+#[derive(Clone)]
+struct UnionFind {
+    inner: CoreUnionFind,
+}
+
+#[pymethods]
+impl UnionFind {
+    #[new]
+    fn new() -> Self {
+        UnionFind {
+            inner: CoreUnionFind::new(),
+        }
+    }
+
+    #[classmethod]
+    fn load(_cls: &Bound<'_, PyType>, path: &str) -> PyResult<Self> {
+        let inner = CoreUnionFind::load(path).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to load: {}", e))
+        })?;
+        Ok(UnionFind { inner })
+    }
+
+    fn find(&mut self, x: usize) -> usize {
+        self.inner.find(x)
+    }
+
+    #[pyo3(name = "batch_find")]
+    fn batch_find<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        batched_idx: PyReadonlyArrayDyn<'py, u32>,
+    ) -> Vec<usize> {
+        let batched_idx = batched_idx.as_array();
+        let results: Vec<usize> = batched_idx
+            .iter()
+            .map(|&x| slf.inner.find(x as usize))
+            .collect();
+        results
+    }
+
+    fn union(&mut self, x: usize, y: usize) {
+        self.inner.union(x, y);
+    }
+
+    fn reset(&mut self) {
+        self.inner.reset();
+    }
+
+    fn dump(&self, path: &str) -> PyResult<()> {
+        self.inner.dump(path).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(format!("Failed to dump: {}", e))
+        })
+    }
+
+    #[getter]
+    fn parent(&self) -> HashMap<usize, usize> {
+        self.inner.parent.clone()
+    }
+
+    #[getter]
+    fn rank(&self) -> HashMap<usize, usize> {
+        self.inner.rank.clone()
+    }
+
+    #[getter]
+    fn edges(&self) -> usize {
+        self.inner.edges
+    }
+}
+
 ///
 /// def embed_func(
 // content: str,
@@ -374,7 +442,7 @@ fn embed_func(
 #[pymodule]
 fn dedup_rs(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EmbedFunc>()?;
-    m.add_class::<union::UnionFind>()?;
+    m.add_class::<UnionFind>()?;
     m.add_function(wrap_pyfunction!(embed_func, m)?)?;
     Ok(())
 }

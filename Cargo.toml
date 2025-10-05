@@ -1,46 +1,8 @@
-[package]
-name = "dedup_rs"
+[workspace]
+members = ["dedup-core", "dedup-bin", "dedup-py"]
+resolver = "2"
+
+[workspace.package]
 version = "0.2.1"
 edition = "2021"
 authors = ["Wayne Lau", ""]
-description = "A Rust library for deduplication of documents"
-readme = "README.md"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[lib]
-name = "dedup_rs"
-path = "src/lib.rs"
-crate-type = ["cdylib", "rlib"]
-
-[[bin]]
-name = "dedup"
-path = "src/dedup.rs"
-
-[[test]]
-name = "integration"
-path = "rust-tests/integration_test.rs"
-
-[features]
-extension-module = ["pyo3/extension-module"]
-
-[dependencies]
-pyo3 = "0.26.0"
-rand = { version = "0.9.2", features = ["small_rng"] }
-sha1 = "0.10.6"
-regex = "1.11.3"
-rayon = "1.11.0"
-lazy_static = "1.5.0"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.145"
-arrow = "56.2.0"
-parquet = { version = "56.2.0" }
-clap = { version = "4.5.48", features = ["derive"] }
-byteorder = "1.5.0"
-sha3 = "0.10.8"
-ndarray = { version = "0.16.1", features = ["rayon"] }
-num-traits = "0.2.19"
-numpy = "0.26.0"
-
-[dev-dependencies]
-criterion = { version = "0.7.0", features = ["html_reports"] }
-pyo3 = { version = "0.26.0", features = ["auto-initialize"] }

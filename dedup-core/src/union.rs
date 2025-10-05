@@ -1,25 +1,22 @@
-use numpy::PyReadonlyArrayDyn;
-
-use pyo3::{prelude::*, types::PyType};
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::HashMap, fs};
 
-#[pyclass]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct UnionFind {
-    #[pyo3(get)]
-    parent: HashMap<usize, usize>,
-    #[pyo3(get)]
-    rank: HashMap<usize, usize>,
-    #[pyo3(get)]
+    pub parent: HashMap<usize, usize>,
+    pub rank: HashMap<usize, usize>,
     #[serde(default)]
     pub edges: usize,
 }
 
-#[pymethods]
+impl Default for UnionFind {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UnionFind {
     // Constructor to create a new UnionFind instance
-    #[new]
     pub fn new() -> Self {
         UnionFind {
             parent: HashMap::new(),
@@ -28,10 +25,9 @@ impl UnionFind {
         }
     }
 
-    #[classmethod]
-    pub fn load(_cls: &Bound<'_, PyType>, path: &str) -> PyResult<Self> {
-        let content = fs::read_to_string(path).expect("Unable to read file");
-        let deserialized: UnionFind = serde_json::from_str(&content).unwrap();
+    pub fn load(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let content = fs::read_to_string(path)?;
+        let deserialized: UnionFind = serde_json::from_str(&content)?;
         Ok(deserialized)
     }
 
@@ -51,16 +47,6 @@ impl UnionFind {
             self.parent.insert(x, root);
             root
         }
-    }
-    // Batch find
-    #[pyo3(name = "batch_find")]
-    fn batch_find<'py>(
-        mut slf: PyRefMut<'py, Self>,
-        batched_idx: PyReadonlyArrayDyn<'py, u32>,
-    ) -> Vec<usize> {
-        let batched_idx = batched_idx.as_array();
-        let results: Vec<usize> = batched_idx.iter().map(|&x| slf.find(x as usize)).collect();
-        results
     }
 
     pub fn union(&mut self, x: usize, y: usize) {
@@ -99,18 +85,12 @@ impl UnionFind {
         self.edges = 0;
     }
 
-    pub fn dump(&self, path: &str) -> PyResult<()> {
+    pub fn dump(&self, path: &str) -> Result<(), std::io::Error> {
         let serialized = serde_json::to_string(&self).unwrap();
-        std::fs::write(path, serialized).expect("Unable to write to file");
-        Ok(())
+        std::fs::write(path, serialized)
     }
 }
 
-impl Default for UnionFind {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 #[cfg(test)]
 mod tests {
     use std::time::Instant;
@@ -140,6 +120,9 @@ mod tests {
         dbg!(process_duration);
 
         // try saving
-        uf.dump("union_find.json").unwrap();
+        uf.dump("union_find_test.json").unwrap();
+
+        // Clean up test file
+        let _ = std::fs::remove_file("union_find_test.json");
     }
 }
