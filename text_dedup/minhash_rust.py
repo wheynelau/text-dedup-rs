@@ -15,7 +15,7 @@ import datasets
 import numpy as np
 
 from text_dedup import logger
-from text_dedup.dedup_rs import EmbedFunc
+from dedup_rs import EmbedFunc
 from text_dedup.utils import INDEX_COLUMN
 from text_dedup.utils import DisableReferenceCount
 from text_dedup.utils import IOArgs

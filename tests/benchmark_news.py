@@ -7,7 +7,7 @@ import datasets
 import pandas as pd
 from sklearn.metrics import adjusted_rand_score
 
-from text_dedup.dedup_rs import UnionFind as UnionFindRS
+from dedup_rs import UnionFind as UnionFindRS
 from text_dedup.minhash import main as minhash_main
 from text_dedup.minhash_pure_rs import main as minhash_pure_rs_main
 from text_dedup.minhash_rust import main as minhash_rust_main

@@ -33,9 +33,9 @@ def main(
     parquet_path: str,
 ):
     timer = Timer()
-    binary_path = "target/release/dedup"
+    binary_path = os.path.join(os.getcwd(), "rust/target/release/dedup")
     if not os.path.exists(binary_path):
-        command = "cargo build --release -p dedup-bin"
+        command = "cd rust && cargo build --release -p dedup-bin"
         result = subprocess.run(command, capture_output=True, text=True, shell=True)
         if result.returncode != 0:
             print(result.stderr)
