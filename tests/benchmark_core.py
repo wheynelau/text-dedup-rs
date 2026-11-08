@@ -268,22 +268,23 @@ if __name__ == "__main__":
         clean_cache=True,
     )
     meta_args = MetaArgs(column="text", batch_size=10000)
+    minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
 
-    with t("MinHash"):
-        ctx = click.Context(minhash_main)
-        minhash_args = MinHashArgs(num_perm=200, ngram=2, threshold=0.5, b=50, r=4)
-        io_args.output = minhash_output = "./temp_files/temp_output_minhash"
-        ctx.invoke(
-            minhash_main,
-            io_args=io_args,
-            meta_args=meta_args,
-            minhash_args=minhash_args,
-        )
     with t("MinRust"):
         ctx = click.Context(minhash_rust_main)
         io_args.output = minhash_output_rust = "./temp_files/temp_output_minhash_rust"
         ctx.invoke(
             minhash_rust_main,
+            io_args=io_args,
+            meta_args=meta_args,
+            minhash_args=minhash_args,
+        )
+
+    with t("MinHash"):
+        ctx = click.Context(minhash_main)
+        io_args.output = minhash_output = "./temp_files/temp_output_minhash"
+        ctx.invoke(
+            minhash_main,
             io_args=io_args,
             meta_args=meta_args,
             minhash_args=minhash_args,
